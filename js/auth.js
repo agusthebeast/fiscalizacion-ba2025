@@ -10,7 +10,7 @@ document.getElementById("login-form").addEventListener("submit", async (e) => {
 
   try {
     await signInWithEmailAndPassword(auth, email, clave);
-    location.href = "dashboard.html";
+    location.href = "inicio.html";
   } catch (error) {
     mostrarMensaje("Datos incorrectos");
   }
