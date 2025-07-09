@@ -1,53 +1,89 @@
 import { db } from './firebase.js';
 import {
-  collection, getDocs
+  collection,
+  getDocs,
+  query,
+  where
 } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore.js";
 
-document.getElementById("ver").addEventListener("click", async () => {
-  const nivel = document.getElementById("nivel").value;
-  const filtro = document.getElementById("filtro").value.trim();
-  const resultadosRef = collection(db, "resultados");
-  const snapshot = await getDocs(resultadosRef);
-  const data = [];
+const nivelSelect = document.getElementById("nivel");
+const filtroSeccion = document.getElementById("filtro-seccion");
+const filtroDistrito = document.getElementById("filtro-distrito");
+const btnVer = document.getElementById("verResultados");
+const canvas = document.getElementById("grafico");
+let chart;
 
-  snapshot.forEach(doc => {
-    const id = doc.id;
-    if (
-      nivel === "mesa" && id === filtro ||
-      nivel === "escuela" && id.startsWith(filtro + "-") ||
-      nivel === "distrito" && id.startsWith(filtro + "-") ||
-      nivel === "seccion" && id.startsWith(filtro + "-") ||
-      nivel === "provincia"
-    ) {
-      data.push({ id, ...doc.data() });
-    }
-  });
+nivelSelect.addEventListener("change", () => {
+  filtroSeccion.style.display = "none";
+  filtroDistrito.style.display = "none";
 
-  mostrarResultados(data);
+  if (nivelSelect.value === "seccion") {
+    filtroSeccion.style.display = "block";
+  } else if (nivelSelect.value === "distrito") {
+    filtroDistrito.style.display = "block";
+  }
 });
 
-function mostrarResultados(data) {
-  const div = document.getElementById("resultado");
-  div.innerHTML = "";
+btnVer.addEventListener("click", async () => {
+  const nivel = nivelSelect.value;
+  let filtro = null;
 
-  const resumen = {};
+  if (nivel === "seccion") {
+    filtro = document.getElementById("seccionInput").value.trim();
+    if (!filtro) return alert("Escribí una sección");
+  } else if (nivel === "distrito") {
+    filtro = document.getElementById("distritoInput").value.trim();
+    if (!filtro) return alert("Escribí un distrito");
+  }
 
-  data.forEach(item => {
-    for (const lista in item.listas) {
-      if (!resumen[lista]) resumen[lista] = { gobernador: 0, diputados: 0 };
-      resumen[lista].gobernador += item.listas[lista].gobernador;
-      resumen[lista].diputados += item.listas[lista].diputados;
+  const datos = await obtenerResultados(nivel, filtro);
+  graficar(datos);
+});
+
+async function obtenerResultados(nivel, filtro) {
+  const resultadosRef = collection(db, "resultados");
+  const snapshot = await getDocs(resultadosRef);
+
+  const acumulado = {};
+
+  snapshot.forEach(doc => {
+    const data = doc.data();
+    if (!data.listas || !data.distrito) return;
+
+    const distrito = data.distrito;
+    const seccion = data.seccion || ""; // por si luego lo añadimos
+    const incluir =
+      (nivel === "provincia") ||
+      (nivel === "seccion" && seccion === filtro) ||
+      (nivel === "distrito" && distrito === filtro);
+
+    if (!incluir) return;
+
+    for (const lista in data.listas) {
+      const nombre = `Lista ${lista}`;
+      const votos = (data.listas[lista].gobernador || 0) + (data.listas[lista].diputados || 0);
+
+      if (!acumulado[nombre]) acumulado[nombre] = 0;
+      acumulado[nombre] += votos;
     }
   });
 
-  const tabla = document.createElement("table");
-  tabla.innerHTML = "<tr><th>Lista</th><th>Gobernador</th><th>Diputados</th></tr>";
+  return acumulado;
+}
 
-  for (const lista in resumen) {
-    const row = document.createElement("tr");
-    row.innerHTML = `<td>${lista}</td><td>${resumen[lista].gobernador}</td><td>${resumen[lista].diputados}</td>`;
-    tabla.appendChild(row);
-  }
+function graficar(datos) {
+  if (chart) chart.destroy();
 
-  div.appendChild(tabla);
+  const labels = Object.keys(datos);
+  const valores = Object.values(datos);
+
+  chart = new Chart(canvas, {
+    type: 'pie',
+    data: {
+      labels: labels,
+      datasets: [{
+        data: valores
+      }]
+    }
+  });
 }

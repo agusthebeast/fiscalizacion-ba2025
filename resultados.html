@@ -5,73 +5,179 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
   <title>Resultados</title>
   <link rel="stylesheet" href="css/style.css" />
+  <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
 </head>
 <body>
   <main>
-    <h1>Consulta de Resultados</h1>
+    <h1>Resultados</h1>
 
-    <label for="buscador">Buscar por distrito o mesa:</label>
-    <input type="text" id="buscador" placeholder="Ej: Avellaneda o 1245" />
+    <div>
+      <label for="nivel">Ver por:</label>
+      <select id="nivel">
+        <option value="provincia">Provincia</option>
+        <option value="seccion">Sección electoral</option>
+        <option value="distrito">Distrito</option>
+      </select>
+    </div>
 
-    <div id="resultados-container"></div>
+    <div id="filtros">
+      <div id="filtro-seccion" style="display: none;">
+        <label for="seccionInput">Sección electoral:</label>
+        <input list="secciones" id="seccionInput" placeholder="Ej: 3" />
+        <datalist id="secciones">
+          <option value="1"><option value="2"><option value="3"><option value="4">
+          <option value="5"><option value="6"><option value="7"><option value="8">
+        </datalist>
+      </div>
+
+      <div id="filtro-distrito" style="display: none;">
+        <label for="distritoInput">Distrito:</label>
+        <input list="distritos" id="distritoInput" placeholder="Ej: San Vicente" />
+        <datalist id="distritos">
+          <!-- lista completa de distritos -->
+          <option value="Adolfo Alsina">
+          <option value="Adolfo Gonzales Chaves">
+          <option value="Alberti">
+          <option value="Almirante Brown">
+          <option value="Arrecifes">
+          <option value="Ayacucho">
+          <option value="Azul">
+          <option value="Bahía Blanca">
+          <option value="Balcarce">
+          <option value="Baradero">
+          <option value="Benito Juárez">
+          <option value="Berazategui">
+          <option value="Berisso">
+          <option value="Bolívar">
+          <option value="Bragado">
+          <option value="Brandsen">
+          <option value="Campana">
+          <option value="Cañuelas">
+          <option value="Capitán Sarmiento">
+          <option value="Carlos Casares">
+          <option value="Carlos Tejedor">
+          <option value="Carmen de Areco">
+          <option value="Castelli">
+          <option value="Chacabuco">
+          <option value="Chascomús">
+          <option value="Chivilcoy">
+          <option value="Colón">
+          <option value="Coronel Dorrego">
+          <option value="Coronel Pringles">
+          <option value="Coronel Rosales">
+          <option value="Coronel Suárez">
+          <option value="Daireaux">
+          <option value="Dolores">
+          <option value="Ensenada">
+          <option value="Escobar">
+          <option value="Esteban Echeverría">
+          <option value="Exaltación de la Cruz">
+          <option value="Ezeiza">
+          <option value="Florencio Varela">
+          <option value="Florentino Ameghino">
+          <option value="General Alvarado">
+          <option value="General Alvear">
+          <option value="General Arenales">
+          <option value="General Belgrano">
+          <option value="General Guido">
+          <option value="General La Madrid">
+          <option value="General Las Heras">
+          <option value="General Lavalle">
+          <option value="General Paz">
+          <option value="General Pinto">
+          <option value="General Pueyrredón">
+          <option value="General Rodríguez">
+          <option value="General San Martín">
+          <option value="General Viamonte">
+          <option value="General Villegas">
+          <option value="Guaminí">
+          <option value="Hipólito Yrigoyen">
+          <option value="Hurlingham">
+          <option value="Ituzaingó">
+          <option value="José C. Paz">
+          <option value="Junín">
+          <option value="La Costa">
+          <option value="La Matanza">
+          <option value="La Plata">
+          <option value="Lanús">
+          <option value="Laprida">
+          <option value="Las Flores">
+          <option value="Leandro N. Alem">
+          <option value="Lincoln">
+          <option value="Lobería">
+          <option value="Lobos">
+          <option value="Lomas de Zamora">
+          <option value="Luján">
+          <option value="Magdalena">
+          <option value="Maipú">
+          <option value="Malvinas Argentinas">
+          <option value="Mar Chiquita">
+          <option value="Marcos Paz">
+          <option value="Mercedes">
+          <option value="Merlo">
+          <option value="Monte">
+          <option value="Monte Hermoso">
+          <option value="Moreno">
+          <option value="Morón">
+          <option value="Navarro">
+          <option value="Necochea">
+          <option value="Nueve de Julio">
+          <option value="Olavarría">
+          <option value="Patagones">
+          <option value="Pehuajó">
+          <option value="Pellegrini">
+          <option value="Pergamino">
+          <option value="Pila">
+          <option value="Pilar">
+          <option value="Pinamar">
+          <option value="Presidente Perón">
+          <option value="Puán">
+          <option value="Punta Indio">
+          <option value="Quilmes">
+          <option value="Ramallo">
+          <option value="Rauch">
+          <option value="Rivadavia">
+          <option value="Rojas">
+          <option value="Roque Pérez">
+          <option value="Saavedra">
+          <option value="Saladillo">
+          <option value="Salliqueló">
+          <option value="Salto">
+          <option value="San Andrés de Giles">
+          <option value="San Antonio de Areco">
+          <option value="San Cayetano">
+          <option value="San Fernando">
+          <option value="San Isidro">
+          <option value="San Miguel">
+          <option value="San Nicolás">
+          <option value="San Pedro">
+          <option value="San Vicente">
+          <option value="Suipacha">
+          <option value="Tandil">
+          <option value="Tapalqué">
+          <option value="Tigre">
+          <option value="Tordillo">
+          <option value="Tornquist">
+          <option value="Trenque Lauquen">
+          <option value="Tres Arroyos">
+          <option value="Tres de Febrero">
+          <option value="Tres Lomas">
+          <option value="Veinticinco de Mayo">
+          <option value="Vicente López">
+          <option value="Villa Gesell">
+          <option value="Villarino">
+          <option value="Zárate">
+        </datalist>
+      </div>
+    </div>
+
+    <button id="verResultados">Ver resultados</button>
+    <canvas id="grafico" width="400" height="400"></canvas>
+
+    <br />
+    <button onclick="location.href='inicio.html'">Volver al inicio</button>
   </main>
 
-  <script type="module">
-    import { auth, db } from './js/firebase.js';
-    import { onAuthStateChanged } from 'https://www.gstatic.com/firebasejs/10.12.0/firebase-auth.js';
-    import {
-      collectionGroup, getDocs, query
-    } from 'https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore.js';
-
-    onAuthStateChanged(auth, async (user) => {
-      if (!user) location.href = 'index.html';
-
-      const q = query(collectionGroup(db, "mesas"));
-      const snapshot = await getDocs(q);
-      const data = [];
-
-      snapshot.forEach(docSnap => {
-        const datos = docSnap.data();
-        data.push({
-          id: docSnap.id,
-          distrito: docSnap.ref.parent.parent.id,
-          listas: datos.listas,
-          imagen: datos.imagenActa || null
-        });
-      });
-
-      const contenedor = document.getElementById("resultados-container");
-
-      function renderizar(filtro = "") {
-        contenedor.innerHTML = "";
-        data
-          .filter(d => {
-            return d.distrito.toLowerCase().includes(filtro.toLowerCase()) ||
-                   d.id.includes(filtro);
-          })
-          .forEach(d => {
-            const div = document.createElement("div");
-            div.className = "resultado";
-            div.innerHTML = `
-              <h3>Mesa ${d.id} - ${d.distrito}</h3>
-              <ul>
-                ${Object.entries(d.listas).map(([nombre, votos]) =>
-                  `<li>${nombre}: Gobernador ${votos.gobernador}, Diputados ${votos.diputados}</li>`
-                ).join("")}
-              </ul>
-              ${d.imagen ? `<a href="${d.imagen}" target="_blank">Ver acta</a>` : ''}
-              <hr>
-            `;
-            contenedor.appendChild(div);
-          });
-      }
-
-      renderizar();
-
-      document.getElementById("buscador").addEventListener("input", (e) => {
-        renderizar(e.target.value);
-      });
-    });
-  </script>
+  <script type="module" src="js/resultados.js"></script>
 </body>
 </html>
