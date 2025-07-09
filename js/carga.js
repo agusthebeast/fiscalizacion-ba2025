@@ -9,15 +9,31 @@ let usuario = null;
 onAuthStateChanged(auth, async (user) => {
   if (!user) return location.href = "index.html";
   usuario = user;
-  const docSnap = await getDoc(doc(db, "usuarios", user.uid));
-  const data = docSnap.data();
-  const mesaSelect = document.getElementById("mesaId");
-  data.mesas.forEach(m => {
-    const opt = document.createElement("option");
-    opt.value = m;
-    opt.textContent = m;
-    mesaSelect.appendChild(opt);
-  });
+
+  try {
+    const docSnap = await getDoc(doc(db, "usuarios", user.uid));
+    if (!docSnap.exists()) {
+      alert("El usuario no tiene datos en Firestore");
+      return;
+    }
+
+    const data = docSnap.data();
+    if (!data.mesas || !Array.isArray(data.mesas)) {
+      alert("No hay mesas asignadas para este usuario");
+      return;
+    }
+
+    const mesaSelect = document.getElementById("mesaId");
+    data.mesas.forEach(m => {
+      const opt = document.createElement("option");
+      opt.value = m;
+      opt.textContent = m;
+      mesaSelect.appendChild(opt);
+    });
+  } catch (err) {
+    console.error("Error obteniendo datos:", err);
+    alert("Error al obtener datos del usuario");
+  }
 });
 
 document.getElementById("agregar-lista").addEventListener("click", () => {
@@ -35,13 +51,24 @@ document.getElementById("agregar-lista").addEventListener("click", () => {
 document.getElementById("formulario-carga").addEventListener("submit", async (e) => {
   e.preventDefault();
   const mesaId = document.getElementById("mesaId").value;
+  if (!mesaId) {
+    alert("Seleccioná una mesa");
+    return;
+  }
+
   const foto = document.getElementById("foto").files[0];
+  if (!foto) {
+    alert("Subí una foto del acta");
+    return;
+  }
+
   const url = await subirImagenACloudinary(foto, mesaId);
 
   const listasDiv = document.querySelectorAll("#listas-container > div");
   const listas = {};
   listasDiv.forEach(div => {
     const nombre = div.querySelector(".lista-nombre").value.trim();
+    if (!nombre) return;
     const gob = parseInt(div.querySelector(".gobernador").value) || 0;
     const dip = parseInt(div.querySelector(".diputados").value) || 0;
     listas[nombre] = { gobernador: gob, diputados: dip };
