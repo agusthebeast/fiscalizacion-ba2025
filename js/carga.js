@@ -98,10 +98,12 @@ const mesaId = `${distrito.replace(/\s+/g, "_").toLowerCase()}-${mesaNum}`;
     listas[nombre] = { gobernador: gob, diputados: dip };
   });
 
-  await setDoc(doc(db, "resultados", mesaId), {
-    listas,
-    imagenActa: url
-  });
+  const [distrito, numeroMesa] = mesaId.split("-");
+await setDoc(doc(db, "resultados", distrito, "mesas", numeroMesa), {
+  listas,
+  imagenActa: url
+});
+
 
   mostrarMensaje("Cargado correctamente");
   location.reload();
