@@ -1,0 +1,27 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+  <title>Resultados</title>
+  <link rel="stylesheet" href="css/style.css" />
+</head>
+<body>
+  <main>
+    <h1>Resultados</h1>
+    <select id="nivel">
+      <option value="mesa">Por Mesa</option>
+      <option value="escuela">Por Escuela</option>
+      <option value="distrito">Por Distrito</option>
+      <option value="seccion">Por Sección</option>
+      <option value="provincia">Total Provincia</option>
+    </select>
+    <input type="text" id="filtro" placeholder="Ej: 1-12-34 o 1-12-34-001" />
+    <button id="ver">Ver</button>
+
+    <div id="resultado"></div>
+  </main>
+
+  <script type="module" src="js/resultados.js"></script>
+</body>
+</html>

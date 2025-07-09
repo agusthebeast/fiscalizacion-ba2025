@@ -1,0 +1,28 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+  <title>Cargar votos</title>
+  <link rel="stylesheet" href="css/style.css" />
+</head>
+<body>
+  <main>
+    <h1>Carga de votos</h1>
+    <form id="formulario-carga">
+      <label for="mesaId">Mesa:</label>
+      <select id="mesaId"></select>
+
+      <div id="listas-container"></div>
+      <button type="button" id="agregar-lista">Agregar lista</button>
+
+      <label for="foto">Foto del acta:</label>
+      <input type="file" id="foto" accept="image/*" required />
+
+      <button type="submit">Enviar</button>
+    </form>
+  </main>
+
+  <script type="module" src="js/carga.js"></script>
+</body>
+</html>
