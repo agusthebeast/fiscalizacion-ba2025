@@ -80,7 +80,7 @@ document.getElementById("formulario-carga").addEventListener("submit", async (e)
 
   const distritoRaw = datosUsuario.detalleMesas?.[mesaNum]?.distrito || "desconocido";
   const distrito = distritoRaw.replace(/\s+/g, "_").toLowerCase();
-  const mesaId = `${distrito}-${mesaNum}`;
+  const mesaId = mesaNum;
 
   const foto = document.getElementById("foto").files[0];
   if (!foto) {

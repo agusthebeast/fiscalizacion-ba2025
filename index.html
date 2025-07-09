@@ -10,12 +10,18 @@
   <main>
     <h1>Ingreso Fiscalización 2025</h1>
     <form id="login-form">
-      <input type="text" id="dni" placeholder="DNI sin puntos" required />
-      <input type="password" id="clave" placeholder="Clave" required />
-      <button type="submit">Ingresar</button>
-    </form>
+  <input type="text" id="dni" placeholder="DNI sin puntos" required />
+  <input type="password" id="clave" placeholder="Clave" required />
+  <label><input type="checkbox" id="ver-clave" /> Ver clave</label>
+  <button type="submit">Ingresar</button>
+</form>
   </main>
-
+  <script>
+  document.getElementById("ver-clave").addEventListener("change", function () {
+    const claveInput = document.getElementById("clave");
+    claveInput.type = this.checked ? "text" : "password";
+  });
+</script>
   <script type="module" src="js/auth.js"></script>
   <div id="mensaje" class="mensaje-box" style="display: none;">
   <p id="mensaje-texto"></p>
