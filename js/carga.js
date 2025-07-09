@@ -105,7 +105,8 @@ document.getElementById("formulario-carga").addEventListener("submit", async (e)
 });
 
 async function subirImagenACloudinary(file, mesaId, data) {
-  const distrito = data.detalleMesas?.[mesaId]?.distrito || "desconocido";
+  const distritoRaw = data.detalleMesas?.[mesaId]?.distrito || "desconocido";
+  const distrito = distritoRaw.replace(/\s+/g, "_").toLowerCase();
   const folderPath = `actas/${distrito}/${mesaId}`;
 
   const url = "https://api.cloudinary.com/v1_1/dudrnu2mq/image/upload";
