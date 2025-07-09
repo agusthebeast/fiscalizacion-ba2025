@@ -41,23 +41,23 @@ btnVer.addEventListener("click", async () => {
 });
 
 async function obtenerResultados(nivel, filtro) {
-  const resultadosRef = collection(db, "resultados");
-  const snapshot = await getDocs(resultadosRef);
+  let resultadosRef = collection(db, "resultados");
+  let q;
 
+  if (nivel === "provincia") {
+    q = resultadosRef;
+  } else if (nivel === "seccion") {
+    q = query(resultadosRef, where("seccion", "==", filtro));
+  } else if (nivel === "distrito") {
+    q = query(resultadosRef, where("distrito", "==", filtro));
+  }
+
+  const snapshot = await getDocs(q);
   const acumulado = {};
 
   snapshot.forEach(doc => {
     const data = doc.data();
-    if (!data.listas || !data.distrito) return;
-
-    const distrito = data.distrito;
-    const seccion = data.seccion || ""; // por si luego lo añadimos
-    const incluir =
-      (nivel === "provincia") ||
-      (nivel === "seccion" && seccion === filtro) ||
-      (nivel === "distrito" && distrito === filtro);
-
-    if (!incluir) return;
+    if (!data.listas) return;
 
     for (const lista in data.listas) {
       const nombre = `Lista ${lista}`;
