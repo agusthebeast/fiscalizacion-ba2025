@@ -5,6 +5,7 @@ import {
 } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore.js";
 
 let usuario = null;
+let datosUsuario = null;
 
 onAuthStateChanged(auth, async (user) => {
   if (!user) return location.href = "index.html";
@@ -17,8 +18,8 @@ onAuthStateChanged(auth, async (user) => {
       return;
     }
 
-    const data = docSnap.data();
-    if (!data.mesas || !Array.isArray(data.mesas)) {
+    datosUsuario = docSnap.data();
+    if (!datosUsuario.mesas || !Array.isArray(datosUsuario.mesas)) {
       alert("No hay mesas asignadas para este usuario");
       return;
     }
@@ -28,7 +29,7 @@ onAuthStateChanged(auth, async (user) => {
     infoBox.id = "infoMesa";
     mesaSelect.after(infoBox);
 
-    data.mesas.forEach(m => {
+    datosUsuario.mesas.forEach(m => {
       const opt = document.createElement("option");
       opt.value = m;
       opt.textContent = m;
@@ -37,7 +38,7 @@ onAuthStateChanged(auth, async (user) => {
 
     mesaSelect.addEventListener("change", () => {
       const mesaId = mesaSelect.value;
-      const detalle = data.detalleMesas?.[mesaId];
+      const detalle = datosUsuario.detalleMesas?.[mesaId];
       if (detalle) {
         infoBox.innerHTML = `
           <p><strong>Distrito:</strong> ${detalle.distrito}</p>
@@ -48,7 +49,6 @@ onAuthStateChanged(auth, async (user) => {
       }
     });
 
-    // Disparar cambio para mostrar info de la primera mesa si hay una seleccionada
     mesaSelect.dispatchEvent(new Event("change"));
 
   } catch (err) {
@@ -83,7 +83,7 @@ document.getElementById("formulario-carga").addEventListener("submit", async (e)
     return;
   }
 
-  const url = await subirImagenACloudinary(foto, mesaId);
+  const url = await subirImagenACloudinary(foto, mesaId, datosUsuario);
 
   const listasDiv = document.querySelectorAll("#listas-container > div");
   const listas = {};
@@ -104,20 +104,21 @@ document.getElementById("formulario-carga").addEventListener("submit", async (e)
   location.reload();
 });
 
-async function subirImagenACloudinary(file, mesaId) {
+async function subirImagenACloudinary(file, mesaId, data) {
+  const distrito = data.detalleMesas?.[mesaId]?.distrito || "desconocido";
+  const folderPath = `actas/${distrito}/${mesaId}`;
+
   const url = "https://api.cloudinary.com/v1_1/dudrnu2mq/image/upload";
   const formData = new FormData();
   formData.append("file", file);
   formData.append("upload_preset", "escrutinio");
-  const distrito = data.detalleMesas?.[mesaId]?.distrito || "desconocido";
-formData.append("folder", `actas/${distrito}/${mesaId}`);
-
+  formData.append("folder", folderPath);
 
   const res = await fetch(url, {
     method: "POST",
     body: formData
   });
 
-  const data = await res.json();
-  return data.secure_url;
+  const responseData = await res.json();
+  return responseData.secure_url;
 }
