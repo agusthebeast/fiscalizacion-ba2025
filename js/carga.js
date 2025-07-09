@@ -38,13 +38,11 @@ onAuthStateChanged(auth, async (user) => {
 
     mesaSelect.addEventListener("change", () => {
       const mesaId = mesaSelect.value;
-      const soloNumero = mesaId.split("-").pop();
-      const detalle = datosUsuario.detalleMesas?.[soloNumero];
+      const detalle = datosUsuario.detalleMesas?.[mesaId];
       if (detalle) {
         infoBox.innerHTML = `
           <p><strong>Distrito:</strong> ${detalle.distrito}</p>
           <p><strong>Escuela:</strong> ${detalle.escuela}</p>
-          <p><strong>Sección:</strong> ${detalle.seccion}</p>
         `;
       } else {
         infoBox.innerHTML = "";
@@ -80,14 +78,9 @@ document.getElementById("formulario-carga").addEventListener("submit", async (e)
     return;
   }
 
-  const soloNumero = mesaNum.split("-").pop();
-  const detalle = datosUsuario.detalleMesas?.[soloNumero];
-
-  const distritoRaw = detalle?.distrito || "desconocido";
-  const seccionRaw = detalle?.seccion || "desconocida";
-
-  const distrito = distritoRaw.replace(/\s+/g, "_").toLowerCase();
-  const mesaId = mesaNum;
+  const detalle = datosUsuario.detalleMesas?.[mesaNum] || {};
+  const distrito = detalle.distrito || "desconocido";
+  const seccion = detalle.seccion || "desconocida";
 
   const foto = document.getElementById("foto").files[0];
   if (!foto) {
@@ -95,7 +88,7 @@ document.getElementById("formulario-carga").addEventListener("submit", async (e)
     return;
   }
 
-  const url = await subirImagenACloudinary(foto, mesaNum, datosUsuario);
+  const url = await subirImagenACloudinary(foto, mesaNum, distrito);
 
   const listasDiv = document.querySelectorAll("#listas-container > div");
   const listas = {};
@@ -107,9 +100,9 @@ document.getElementById("formulario-carga").addEventListener("submit", async (e)
     listas[nombre] = { gobernador: gob, diputados: dip };
   });
 
-  await setDoc(doc(db, "resultados", mesaId), {
-    distrito: distritoRaw,
-    seccion: seccionRaw,
+  await setDoc(doc(db, "resultados", mesaNum), {
+    distrito,
+    seccion,
     numeroMesa: mesaNum,
     listas,
     imagenActa: url
@@ -119,10 +112,9 @@ document.getElementById("formulario-carga").addEventListener("submit", async (e)
   location.reload();
 });
 
-async function subirImagenACloudinary(file, mesaNum, data) {
-  const distritoRaw = data.detalleMesas?.[mesaNum]?.distrito || "desconocido";
-  const distrito = distritoRaw.replace(/\s+/g, "_").toLowerCase();
-  const folderPath = `actas/${distrito}/${mesaNum}`;
+async function subirImagenACloudinary(file, mesaNum, distrito) {
+  const carpeta = distrito.replace(/\s+/g, "_").toLowerCase();
+  const folderPath = `actas/${carpeta}/${mesaNum}`;
 
   const url = "https://api.cloudinary.com/v1_1/dudrnu2mq/image/upload";
   const formData = new FormData();
