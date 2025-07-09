@@ -11,6 +11,8 @@ const filtroSeccion = document.getElementById("filtro-seccion");
 const filtroDistrito = document.getElementById("filtro-distrito");
 const btnVer = document.getElementById("verResultados");
 const canvas = document.getElementById("grafico");
+const mensajeBox = document.getElementById("mensaje");
+const mensajeTexto = document.getElementById("mensaje-texto");
 let chart;
 
 nivelSelect.addEventListener("change", () => {
@@ -30,10 +32,10 @@ btnVer.addEventListener("click", async () => {
 
   if (nivel === "seccion") {
     filtro = document.getElementById("seccionInput").value.trim();
-    if (!filtro) return alert("Escribí una sección");
+    if (!filtro) return mostrarMensaje("Seleccioná una sección");
   } else if (nivel === "distrito") {
     filtro = document.getElementById("distritoInput").value.trim();
-    if (!filtro) return alert("Escribí un distrito");
+    if (!filtro) return mostrarMensaje("Seleccioná un distrito");
   }
 
   const datos = await obtenerResultados(nivel, filtro);
@@ -86,4 +88,9 @@ function graficar(datos) {
       }]
     }
   });
+}
+
+function mostrarMensaje(texto) {
+  mensajeTexto.textContent = texto;
+  mensajeBox.style.display = "flex";
 }
