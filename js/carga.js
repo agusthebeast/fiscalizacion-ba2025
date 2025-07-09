@@ -43,6 +43,7 @@ onAuthStateChanged(auth, async (user) => {
         infoBox.innerHTML = `
           <p><strong>Distrito:</strong> ${detalle.distrito}</p>
           <p><strong>Escuela:</strong> ${detalle.escuela}</p>
+          <p><strong>Sección:</strong> ${detalle.seccion}</p>
         `;
       } else {
         infoBox.innerHTML = "";
@@ -78,7 +79,10 @@ document.getElementById("formulario-carga").addEventListener("submit", async (e)
     return;
   }
 
-  const distritoRaw = datosUsuario.detalleMesas?.[mesaNum]?.distrito || "desconocido";
+  const detalle = datosUsuario.detalleMesas?.[mesaNum];
+  const distritoRaw = detalle?.distrito || "desconocido";
+  const seccionRaw = detalle?.seccion || "desconocida";
+
   const distrito = distritoRaw.replace(/\s+/g, "_").toLowerCase();
   const mesaId = mesaNum;
 
@@ -102,6 +106,7 @@ document.getElementById("formulario-carga").addEventListener("submit", async (e)
 
   await setDoc(doc(db, "resultados", mesaId), {
     distrito: distritoRaw,
+    seccion: seccionRaw,
     numeroMesa: mesaNum,
     listas,
     imagenActa: url
