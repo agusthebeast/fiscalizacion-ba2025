@@ -38,7 +38,8 @@ onAuthStateChanged(auth, async (user) => {
 
     mesaSelect.addEventListener("change", () => {
       const mesaId = mesaSelect.value;
-      const detalle = datosUsuario.detalleMesas?.[mesaId];
+      const soloNumero = mesaId.split("-").pop();
+      const detalle = datosUsuario.detalleMesas?.[soloNumero];
       if (detalle) {
         infoBox.innerHTML = `
           <p><strong>Distrito:</strong> ${detalle.distrito}</p>
@@ -79,7 +80,9 @@ document.getElementById("formulario-carga").addEventListener("submit", async (e)
     return;
   }
 
-  const detalle = datosUsuario.detalleMesas?.[mesaNum];
+  const soloNumero = mesaNum.split("-").pop();
+  const detalle = datosUsuario.detalleMesas?.[soloNumero];
+
   const distritoRaw = detalle?.distrito || "desconocido";
   const seccionRaw = detalle?.seccion || "desconocida";
 
