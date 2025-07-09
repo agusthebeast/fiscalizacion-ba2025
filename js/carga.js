@@ -71,7 +71,10 @@ document.getElementById("agregar-lista").addEventListener("click", () => {
 
 document.getElementById("formulario-carga").addEventListener("submit", async (e) => {
   e.preventDefault();
-  const mesaId = document.getElementById("mesaId").value;
+  const mesaNum = document.getElementById("mesaId").value;
+const distrito = datosUsuario.detalleMesas?.[mesaNum]?.distrito || "desconocido";
+const mesaId = `${distrito.replace(/\s+/g, "_").toLowerCase()}-${mesaNum}`;
+
   if (!mesaId) {
     mostrarMensaje("Seleccioná una mesa");
     return;
