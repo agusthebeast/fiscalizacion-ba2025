@@ -24,12 +24,33 @@ onAuthStateChanged(auth, async (user) => {
     }
 
     const mesaSelect = document.getElementById("mesaId");
+    const infoBox = document.createElement("div");
+    infoBox.id = "infoMesa";
+    mesaSelect.after(infoBox);
+
     data.mesas.forEach(m => {
       const opt = document.createElement("option");
       opt.value = m;
       opt.textContent = m;
       mesaSelect.appendChild(opt);
     });
+
+    mesaSelect.addEventListener("change", () => {
+      const mesaId = mesaSelect.value;
+      const detalle = data.detalleMesas?.[mesaId];
+      if (detalle) {
+        infoBox.innerHTML = `
+          <p><strong>Distrito:</strong> ${detalle.distrito}</p>
+          <p><strong>Escuela:</strong> ${detalle.escuela}</p>
+        `;
+      } else {
+        infoBox.innerHTML = "";
+      }
+    });
+
+    // Disparar cambio para mostrar info de la primera mesa si hay una seleccionada
+    mesaSelect.dispatchEvent(new Event("change"));
+
   } catch (err) {
     console.error("Error obteniendo datos:", err);
     alert("Error al obtener datos del usuario");
