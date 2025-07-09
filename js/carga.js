@@ -71,14 +71,16 @@ document.getElementById("agregar-lista").addEventListener("click", () => {
 
 document.getElementById("formulario-carga").addEventListener("submit", async (e) => {
   e.preventDefault();
-  const mesaNum = document.getElementById("mesaId").value;
-const distrito = datosUsuario.detalleMesas?.[mesaNum]?.distrito || "desconocido";
-const mesaId = `${distrito.replace(/\s+/g, "_").toLowerCase()}-${mesaNum}`;
 
-  if (!mesaId) {
+  const mesaNum = document.getElementById("mesaId").value;
+  if (!mesaNum) {
     mostrarMensaje("Seleccioná una mesa");
     return;
   }
+
+  const distritoRaw = datosUsuario.detalleMesas?.[mesaNum]?.distrito || "desconocido";
+  const distrito = distritoRaw.replace(/\s+/g, "_").toLowerCase();
+  const mesaId = `${distrito}-${mesaNum}`;
 
   const foto = document.getElementById("foto").files[0];
   if (!foto) {
@@ -86,7 +88,7 @@ const mesaId = `${distrito.replace(/\s+/g, "_").toLowerCase()}-${mesaNum}`;
     return;
   }
 
-  const url = await subirImagenACloudinary(foto, mesaId, datosUsuario);
+  const url = await subirImagenACloudinary(foto, mesaNum, datosUsuario);
 
   const listasDiv = document.querySelectorAll("#listas-container > div");
   const listas = {};
@@ -98,21 +100,21 @@ const mesaId = `${distrito.replace(/\s+/g, "_").toLowerCase()}-${mesaNum}`;
     listas[nombre] = { gobernador: gob, diputados: dip };
   });
 
-  const [distrito, numeroMesa] = mesaId.split("-");
-await setDoc(doc(db, "resultados", distrito, "mesas", numeroMesa), {
-  listas,
-  imagenActa: url
-});
-
+  await setDoc(doc(db, "resultados", mesaId), {
+    distrito: distritoRaw,
+    numeroMesa: mesaNum,
+    listas,
+    imagenActa: url
+  });
 
   mostrarMensaje("Cargado correctamente");
   location.reload();
 });
 
-async function subirImagenACloudinary(file, mesaId, data) {
-  const distritoRaw = data.detalleMesas?.[mesaId]?.distrito || "desconocido";
+async function subirImagenACloudinary(file, mesaNum, data) {
+  const distritoRaw = data.detalleMesas?.[mesaNum]?.distrito || "desconocido";
   const distrito = distritoRaw.replace(/\s+/g, "_").toLowerCase();
-  const folderPath = `actas/${distrito}/${mesaId}`;
+  const folderPath = `actas/${distrito}/${mesaNum}`;
 
   const url = "https://api.cloudinary.com/v1_1/dudrnu2mq/image/upload";
   const formData = new FormData();
