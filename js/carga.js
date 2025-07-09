@@ -109,7 +109,9 @@ async function subirImagenACloudinary(file, mesaId) {
   const formData = new FormData();
   formData.append("file", file);
   formData.append("upload_preset", "escrutinio");
-  formData.append("folder", `actas/${mesaId}`);
+  const distrito = data.detalleMesas?.[mesaId]?.distrito || "desconocido";
+formData.append("folder", `actas/${distrito}/${mesaId}`);
+
 
   const res = await fetch(url, {
     method: "POST",
