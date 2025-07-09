@@ -12,6 +12,13 @@ document.getElementById("login-form").addEventListener("submit", async (e) => {
     await signInWithEmailAndPassword(auth, email, clave);
     location.href = "dashboard.html";
   } catch (error) {
-    alert("Datos incorrectos");
+    mostrarMensaje("Datos incorrectos");
   }
 });
+
+function mostrarMensaje(texto) {
+  const box = document.getElementById("mensaje");
+  const txt = document.getElementById("mensaje-texto");
+  txt.textContent = texto;
+  box.style.display = "flex";
+}

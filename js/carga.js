@@ -14,13 +14,13 @@ onAuthStateChanged(auth, async (user) => {
   try {
     const docSnap = await getDoc(doc(db, "usuarios", user.uid));
     if (!docSnap.exists()) {
-      alert("El usuario no tiene datos en Firestore");
+      mostrarMensaje("El usuario no tiene datos guardados");
       return;
     }
 
     datosUsuario = docSnap.data();
     if (!datosUsuario.mesas || !Array.isArray(datosUsuario.mesas)) {
-      alert("No hay mesas asignadas para este usuario");
+      mostrarMensaje("No hay mesas asignadas para este usuario");
       return;
     }
 
@@ -53,7 +53,7 @@ onAuthStateChanged(auth, async (user) => {
 
   } catch (err) {
     console.error("Error obteniendo datos:", err);
-    alert("Error al obtener datos del usuario");
+    mostrarMensaje("Error al obtener datos del usuario");
   }
 });
 
@@ -73,13 +73,13 @@ document.getElementById("formulario-carga").addEventListener("submit", async (e)
   e.preventDefault();
   const mesaId = document.getElementById("mesaId").value;
   if (!mesaId) {
-    alert("Seleccioná una mesa");
+    mostrarMensaje("Seleccioná una mesa");
     return;
   }
 
   const foto = document.getElementById("foto").files[0];
   if (!foto) {
-    alert("Subí una foto del acta");
+    mostrarMensaje("Subí una foto del acta");
     return;
   }
 
@@ -100,7 +100,7 @@ document.getElementById("formulario-carga").addEventListener("submit", async (e)
     imagenActa: url
   });
 
-  alert("Cargado correctamente");
+  mostrarMensaje("Cargado correctamente");
   location.reload();
 });
 
@@ -122,4 +122,11 @@ async function subirImagenACloudinary(file, mesaId, data) {
 
   const responseData = await res.json();
   return responseData.secure_url;
+}
+
+function mostrarMensaje(texto) {
+  const box = document.getElementById("mensaje");
+  const txt = document.getElementById("mensaje-texto");
+  txt.textContent = texto;
+  box.style.display = "flex";
 }
