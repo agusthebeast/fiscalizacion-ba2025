@@ -37,12 +37,13 @@ onAuthStateChanged(auth, async (user) => {
     });
 
     mesaSelect.addEventListener("change", () => {
-      const mesaId = mesaSelect.value;
+      const mesaId = mesaSelect.value.split("-")[1]; // extrae solo el número
       const detalle = datosUsuario.detalleMesas?.[mesaId];
       if (detalle) {
         infoBox.innerHTML = `
           <p><strong>Distrito:</strong> ${detalle.distrito}</p>
           <p><strong>Escuela:</strong> ${detalle.escuela}</p>
+          <p><strong>Sección:</strong> ${detalle.seccion}</p>
         `;
       } else {
         infoBox.innerHTML = "";
@@ -72,15 +73,16 @@ document.getElementById("agregar-lista").addEventListener("click", () => {
 document.getElementById("formulario-carga").addEventListener("submit", async (e) => {
   e.preventDefault();
 
-  const mesaNum = document.getElementById("mesaId").value;
-  if (!mesaNum) {
+  const mesaFull = document.getElementById("mesaId").value;
+  if (!mesaFull) {
     mostrarMensaje("Seleccioná una mesa");
     return;
   }
 
+  const mesaNum = mesaFull.split("-")[1]; // solo el número (ej. 86)
   const detalle = datosUsuario.detalleMesas?.[mesaNum] || {};
   const distrito = detalle.distrito || "desconocido";
-  const seccion = detalle.seccion || "desconocida";
+  const seccion = detalle.seccion || "desconocido";
 
   const foto = document.getElementById("foto").files[0];
   if (!foto) {
@@ -88,7 +90,7 @@ document.getElementById("formulario-carga").addEventListener("submit", async (e)
     return;
   }
 
-  const url = await subirImagenACloudinary(foto, mesaNum, distrito);
+  const url = await subirImagenACloudinary(foto, mesaFull, distrito);
 
   const listasDiv = document.querySelectorAll("#listas-container > div");
   const listas = {};
@@ -100,10 +102,10 @@ document.getElementById("formulario-carga").addEventListener("submit", async (e)
     listas[nombre] = { gobernador: gob, diputados: dip };
   });
 
-  await setDoc(doc(db, "resultados", mesaNum), {
+  await setDoc(doc(db, "resultados", mesaFull), {
     distrito,
     seccion,
-    numeroMesa: mesaNum,
+    numeroMesa: mesaFull,
     listas,
     imagenActa: url
   });
@@ -112,10 +114,8 @@ document.getElementById("formulario-carga").addEventListener("submit", async (e)
   location.reload();
 });
 
-async function subirImagenACloudinary(file, mesaNum, distrito) {
-  const carpeta = distrito.replace(/\s+/g, "_").toLowerCase();
-  const folderPath = `actas/${carpeta}/${mesaNum}`;
-
+async function subirImagenACloudinary(file, mesaFull, distrito) {
+  const folderPath = `actas/${distrito.replace(/\s+/g, "_").toLowerCase()}/${mesaFull}`;
   const url = "https://api.cloudinary.com/v1_1/dudrnu2mq/image/upload";
   const formData = new FormData();
   formData.append("file", file);

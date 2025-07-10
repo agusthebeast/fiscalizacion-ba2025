@@ -30,10 +30,10 @@ btnVer.addEventListener("click", async () => {
 
   if (nivel === "seccion") {
     filtro = document.getElementById("seccionInput").value.trim();
-    if (!filtro) return mostrarMensaje("Escribí una sección");
+    if (!filtro) return alert("Escribí una sección");
   } else if (nivel === "distrito") {
     filtro = document.getElementById("distritoInput").value.trim();
-    if (!filtro) return mostrarMensaje("Escribí un distrito");
+    if (!filtro) return alert("Escribí un distrito");
   }
 
   const datos = await obtenerResultados(nivel, filtro);
@@ -62,7 +62,6 @@ async function obtenerResultados(nivel, filtro) {
     for (const lista in data.listas) {
       const nombre = `Lista ${lista}`;
       const votos = (data.listas[lista].gobernador || 0) + (data.listas[lista].diputados || 0);
-
       if (!acumulado[nombre]) acumulado[nombre] = 0;
       acumulado[nombre] += votos;
     }
@@ -86,11 +85,4 @@ function graficar(datos) {
       }]
     }
   });
-}
-
-function mostrarMensaje(texto) {
-  const box = document.getElementById("mensaje");
-  const txt = document.getElementById("mensaje-texto");
-  txt.textContent = texto;
-  box.style.display = "flex";
 }
