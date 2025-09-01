@@ -13,7 +13,31 @@
     <label for="mesa">Seleccioná tu mesa:</label>
     <select id="mesa"></select>
 
-    <div id="formulario-votos"></div>
+    <label>A. Electores que votaron:</label>
+    <input type="number" id="votaron" />
+
+    <label>B. Sobres en la urna:</label>
+    <input type="number" id="sobres" oninput="calcularDiferencia()" />
+
+    <label>C. Diferencia A - B:</label>
+    <input type="number" id="diferencia" disabled />
+
+    <table border="1" style="width:100%; margin-top:20px;">
+      <thead>
+        <tr>
+          <th>Partido</th>
+          <th>Diputados</th>
+          <th>Concejales</th>
+        </tr>
+      </thead>
+      <tbody id="tabla-votos"></tbody>
+    </table>
+
+    <label>D. Votos en blanco:</label>
+    <input type="number" id="blanco" />
+
+    <label>E. Votos impugnados:</label>
+    <input type="number" id="impugnados" />
 
     <label>Foto del acta:</label>
     <input type="file" id="foto" accept="image/*" />
@@ -28,84 +52,104 @@
   <script src="../js/x2BkaL9e.js"></script>
 
   <script>
-    const listas = [
-      "UNION POR LA PATRIA", "JUNTOS POR EL CAMBIO", "LA LIBERTAD AVANZA",
-      "FRENTE DE IZQUIERDA", "VOTOS EN BLANCO", "NULOS", "RECURRIDOS"
+    const agrupaciones = [
+      { codigo: "2200", nombre: "FUERZA PATRIA" },
+      { codigo: "2201", nombre: "POTENCIA" },
+      { codigo: "2202", nombre: "ES CON VOS ES CON NOSOTROS", noUsar: true },
+      { codigo: "2203", nombre: "FTE DE IZQ. Y DE TRABAJADORES - UNIDAD" },
+      { codigo: "2204", nombre: "SOMOS BUENOS AIRES" },
+      { codigo: "2205", nombre: "NUEVOS AIRES" },
+      { codigo: "2206", nombre: "LA LIBERTAD AVANZA" },
+      { codigo: "2207", nombre: "UNION Y LIBERTAD" },
+      { codigo: "2208", nombre: "UNION LIBERAL" },
+      { codigo: "959", nombre: "MOVIMIENTO AVANZADA SOCIALISTA", noUsar: true },
+      { codigo: "963", nombre: "FRENTE PATRIOTA FEDERAL", noUsar: true },
+      { codigo: "974", nombre: "POLITICA OBRERA", noUsar: true },
+      { codigo: "980", nombre: "PARTIDO TIEMPO DE TODOS", noUsar: true },
+      { codigo: "1003", nombre: "CONSTRUYENDO PORVENIR", noUsar: true },
+      { codigo: "1006", nombre: "PARTIDO LIBERTARIO" },
+      { codigo: "1008", nombre: "VALORES REPUBLICANOS" }
     ];
 
-    const formulario = document.getElementById("formulario-votos");
-
-    listas.forEach(lista => {
-      const div = document.createElement("div");
-      div.innerHTML = `
-        <label><strong>${lista}</strong></label><br>
-        Diputados: <input type="number" id="dip_${lista}" value="0" /><br>
-        Concejales: <input type="number" id="con_${lista}" value="0" /><br><br>
-      `;
-      formulario.appendChild(div);
-    });
-
+    const db = firebase.firestore();
     let dniUsuario = "";
+    let escuela = "";
+
+    function calcularDiferencia() {
+      const a = parseInt(document.getElementById("votaron").value) || 0;
+      const b = parseInt(document.getElementById("sobres").value) || 0;
+      document.getElementById("diferencia").value = a - b;
+    }
 
     firebase.auth().onAuthStateChanged(user => {
       if (!user) return;
       dniUsuario = user.email.split("@")[0];
 
-      fetch("../data/mesas.json")
-        .then(res => res.json())
-        .then(mesasData => {
-          const mesas = mesasData[dniUsuario] || [];
+      db.collection("mesas").where("fiscal_dni", "==", dniUsuario).orderBy("mesa").get()
+        .then(snapshot => {
           const select = document.getElementById("mesa");
-          if (mesas.length === 0) {
-            select.innerHTML = `<option value="">No tenés mesas asignadas</option>`;
-          } else {
-            select.innerHTML = `<option value="">-- Elegir mesa --</option>`;
-            mesas.forEach(m => {
-              select.innerHTML += `<option value="${m}">Mesa ${m}</option>`;
-            });
-          }
+          select.innerHTML = `<option value="">-- Elegir mesa --</option>`;
+          snapshot.forEach(doc => {
+            const data = doc.data();
+            escuela = data.escuela;
+            select.innerHTML += `<option value="${data.mesa}">Mesa ${data.mesa}</option>`;
+          });
         });
+
+      const tabla = document.getElementById("tabla-votos");
+      agrupaciones.forEach(a => {
+        const fila = document.createElement("tr");
+        fila.innerHTML = `
+          <td>${a.codigo} - ${a.nombre}</td>
+          <td><input type="number" id="dip_${a.codigo}" value="0" /></td>
+          <td><input type="number" id="con_${a.codigo}" value="0" ${a.noUsar ? "disabled" : ""} /></td>
+        `;
+        tabla.appendChild(fila);
+      });
     });
 
     async function guardarEscrutinio() {
       const mesa = document.getElementById("mesa").value;
       if (!mesa) return alert("Elegí una mesa");
-
       const archivo = document.getElementById("foto").files[0];
       if (!archivo) return alert("Subí la foto del acta");
 
-      document.getElementById("estado").innerText = "Subiendo...";
-
       const votos = {};
-      listas.forEach(lista => {
-        votos[lista] = {
-          diputados: parseInt(document.getElementById("dip_" + lista).value) || 0,
-          concejales: parseInt(document.getElementById("con_" + lista).value) || 0
+      agrupaciones.forEach(a => {
+        votos[a.codigo + " - " + a.nombre] = {
+          diputados: parseInt(document.getElementById("dip_" + a.codigo).value) || 0,
+          concejales: a.noUsar ? 0 : parseInt(document.getElementById("con_" + a.codigo).value) || 0
         };
       });
 
+      const resumen = {
+        mesa,
+        dni: dniUsuario,
+        escuela,
+        votos,
+        votos_en_blanco: parseInt(document.getElementById("blanco").value) || 0,
+        votos_impugnados: parseInt(document.getElementById("impugnados").value) || 0,
+        electores_que_votaron: parseInt(document.getElementById("votaron").value) || 0,
+        sobres_en_urna: parseInt(document.getElementById("sobres").value) || 0,
+        timestamp: Date.now()
+      };
+
+      document.getElementById("estado").innerText = "Subiendo foto...";
       const formData = new FormData();
       formData.append("file", archivo);
       formData.append("upload_preset", "escrutinio");
       formData.append("folder", `escrutinios/${dniUsuario}`);
 
-      const cloudRes = await fetch("https://api.cloudinary.com/v1_1/dudrnu2mq/image/upload", {
+      const res = await fetch("https://api.cloudinary.com/v1_1/dudrnu2mq/image/upload", {
         method: "POST",
         body: formData
       });
-      const cloudData = await cloudRes.json();
-      const urlFoto = cloudData.secure_url;
+      const data = await res.json();
+      resumen.urlFoto = data.secure_url;
 
-      const db = firebase.firestore();
-      await db.collection("escrutinios").doc(mesa).set({
-        mesa,
-        dni: dniUsuario,
-        votos,
-        urlFoto,
-        timestamp: Date.now()
-      });
-
-      document.getElementById("estado").innerText = "Guardado correctamente";
+      document.getElementById("estado").innerText = "Guardando en base de datos...";
+      await db.collection("escrutinios").doc(mesa).set(resumen);
+      document.getElementById("estado").innerText = "✅ Guardado correctamente";
     }
   </script>
 </body>

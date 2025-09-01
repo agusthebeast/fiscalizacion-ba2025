@@ -6,9 +6,6 @@
   <title>Resultados</title>
   <link rel="stylesheet" href="../css/jIh3aOq.css" />
   <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
-  <script src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js"></script>
-<script src="../js/exportador.js"></script>
-
 </head>
 <body>
   <div class="login-container">
@@ -28,77 +25,55 @@
 
   <script>
     const db = firebase.firestore();
-    const listas = [
-      "UNION POR LA PATRIA", "JUNTOS POR EL CAMBIO", "LA LIBERTAD AVANZA",
-      "FRENTE DE IZQUIERDA", "VOTOS EN BLANCO", "NULOS", "RECURRIDOS"
-    ];
 
-    const totales = {};
-    listas.forEach(l => totales[l] = { diputados: 0, concejales: 0 });
+    const votosDip = {};
+    const votosCon = {};
 
     db.collection("escrutinios").get().then(snapshot => {
       snapshot.forEach(doc => {
-        const votos = doc.data().votos;
-        listas.forEach(lista => {
-          totales[lista].diputados += votos[lista].diputados;
-          totales[lista].concejales += votos[lista].concejales;
-        });
-      });
+        const data = doc.data();
+        const votos = data.votos;
 
-      const diputadosData = listas.map(l => totales[l].diputados);
-      const concejalesData = listas.map(l => totales[l].concejales);
+        for (const partido in votos) {
+          const dip = votos[partido].diputados || 0;
+          const con = votos[partido].concejales || 0;
 
-      new Chart(document.getElementById("graficoDiputados"), {
-        type: "pie",
-        data: {
-          labels: listas,
-          datasets: [{ data: diputadosData }]
+          votosDip[partido] = (votosDip[partido] || 0) + dip;
+          votosCon[partido] = (votosCon[partido] || 0) + con;
         }
       });
 
-      new Chart(document.getElementById("graficoConcejales"), {
-        type: "pie",
-        data: {
-          labels: listas,
-          datasets: [{ data: concejalesData }]
-        }
-      });
+      renderChart("graficoDiputados", votosDip);
+      renderChart("graficoConcejales", votosCon);
     });
 
-    <button onclick="exportarExcel()">Exportar a Excel</button>
+    function renderChart(canvasId, data) {
+      const labels = Object.keys(data);
+      const values = Object.values(data);
 
+      new Chart(document.getElementById(canvasId), {
+        type: "pie",
+        data: {
+          labels,
+          datasets: [{ data: values }]
+        }
+      });
+    }
 
     function verPlantillas() {
       db.collection("escrutinios").get().then(snapshot => {
-        const container = document.getElementById("plantillas-container");
-        container.innerHTML = "";
-
-        const porEscuela = {};
+        const cont = document.getElementById("plantillas-container");
+        cont.innerHTML = "";
 
         snapshot.forEach(doc => {
           const data = doc.data();
-          const mesa = data.mesa;
-          const url = data.urlFoto;
-          const dni = data.dni;
-
-          if (!porEscuela[dni]) porEscuela[dni] = [];
-          porEscuela[dni].push({ mesa, url });
-        });
-
-        for (const dni in porEscuela) {
-          const grupo = porEscuela[dni];
           const div = document.createElement("div");
-          div.innerHTML = `<h3>Fiscal DNI: ${dni}</h3>`;
-          grupo.forEach(foto => {
-            div.innerHTML += `
-              <div>
-                <strong>Mesa ${foto.mesa}</strong><br>
-                <img src="${foto.url}" width="100%" style="max-width:300px; margin-bottom:10px" />
-              </div>
-            `;
-          });
-          container.appendChild(div);
-        }
+          div.innerHTML = `
+            <h3>${data.escuela} – Mesa ${data.mesa}</h3>
+            <img src="${data.urlFoto}" style="max-width: 100%; margin-bottom: 20px" />
+          `;
+          cont.appendChild(div);
+        });
       });
     }
   </script>
