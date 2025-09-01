@@ -10,7 +10,8 @@
   <div class="login-container">
     <h2>Cargar Escrutinio</h2>
 
-    <input type="text" id="mesa" placeholder="Número de mesa" />
+    <label for="mesa">Seleccioná tu mesa:</label>
+    <select id="mesa"></select>
 
     <div id="formulario-votos"></div>
 
@@ -44,17 +45,36 @@
       formulario.appendChild(div);
     });
 
+    let dniUsuario = "";
+
+    firebase.auth().onAuthStateChanged(user => {
+      if (!user) return;
+      dniUsuario = user.email.split("@")[0];
+
+      fetch("../data/mesas.json")
+        .then(res => res.json())
+        .then(mesasData => {
+          const mesas = mesasData[dniUsuario] || [];
+          const select = document.getElementById("mesa");
+          if (mesas.length === 0) {
+            select.innerHTML = `<option value="">No tenés mesas asignadas</option>`;
+          } else {
+            select.innerHTML = `<option value="">-- Elegir mesa --</option>`;
+            mesas.forEach(m => {
+              select.innerHTML += `<option value="${m}">Mesa ${m}</option>`;
+            });
+          }
+        });
+    });
+
     async function guardarEscrutinio() {
-      const mesa = document.getElementById("mesa").value.trim();
-      if (!mesa) return alert("Ingresá el número de mesa");
+      const mesa = document.getElementById("mesa").value;
+      if (!mesa) return alert("Elegí una mesa");
 
       const archivo = document.getElementById("foto").files[0];
       if (!archivo) return alert("Subí la foto del acta");
 
       document.getElementById("estado").innerText = "Subiendo...";
-
-      const user = firebase.auth().currentUser;
-      const dni = user.email.split("@")[0];
 
       const votos = {};
       listas.forEach(lista => {
@@ -67,7 +87,7 @@
       const formData = new FormData();
       formData.append("file", archivo);
       formData.append("upload_preset", "escrutinio");
-      formData.append("folder", `escrutinios/${dni}`);
+      formData.append("folder", `escrutinios/${dniUsuario}`);
 
       const cloudRes = await fetch("https://api.cloudinary.com/v1_1/dudrnu2mq/image/upload", {
         method: "POST",
@@ -79,7 +99,7 @@
       const db = firebase.firestore();
       await db.collection("escrutinios").doc(mesa).set({
         mesa,
-        dni,
+        dni: dniUsuario,
         votos,
         urlFoto,
         timestamp: Date.now()
