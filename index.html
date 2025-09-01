@@ -4,29 +4,19 @@
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
   <title>Ingreso Fiscal</title>
-  <link rel="stylesheet" href="css/style.css" />
+  <link rel="stylesheet" href="css/jIh3aOq.css" />
 </head>
 <body>
-  <main>
-    <h1>Ingreso Fiscalización 2025</h1>
-    <form id="login-form">
-  <input type="text" id="dni" placeholder="DNI sin puntos" required />
-  <input type="password" id="clave" placeholder="Clave" required />
-  <label><input type="checkbox" id="ver-clave" /> Ver clave</label>
-  <button type="submit">Ingresar</button>
-</form>
-  </main>
-  <script>
-  document.getElementById("ver-clave").addEventListener("change", function () {
-    const claveInput = document.getElementById("clave");
-    claveInput.type = this.checked ? "text" : "password";
-  });
-</script>
-  <script type="module" src="js/auth.js"></script>
-  <div id="mensaje" class="mensaje-box" style="display: none;">
-  <p id="mensaje-texto"></p>
-  <button onclick="document.getElementById('mensaje').style.display='none'">Cerrar</button>
-</div>
+  <div class="login-container">
+    <h1>Ingreso de Fiscal</h1>
+    <input type="text" id="dni" placeholder="DNI (sin puntos)" />
+    <input type="password" id="password" placeholder="Contraseña" />
+    <button onclick="login()">Ingresar</button>
+    <div id="login-error"></div>
+  </div>
 
+  <script src="https://www.gstatic.com/firebasejs/10.7.2/firebase-app-compat.js"></script>
+  <script src="https://www.gstatic.com/firebasejs/10.7.2/firebase-auth-compat.js"></script>
+  <script src="js/x2BkaL9e.js"></script>
 </body>
 </html>

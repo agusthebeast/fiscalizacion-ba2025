@@ -1,0 +1,92 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+  <title>Cargar Escrutinio</title>
+  <link rel="stylesheet" href="../css/jIh3aOq.css" />
+</head>
+<body>
+  <div class="login-container">
+    <h2>Cargar Escrutinio</h2>
+
+    <input type="text" id="mesa" placeholder="Número de mesa" />
+
+    <div id="formulario-votos"></div>
+
+    <label>Foto del acta:</label>
+    <input type="file" id="foto" accept="image/*" />
+
+    <button onclick="guardarEscrutinio()">Guardar</button>
+    <div id="estado"></div>
+  </div>
+
+  <script src="https://www.gstatic.com/firebasejs/10.7.2/firebase-app-compat.js"></script>
+  <script src="https://www.gstatic.com/firebasejs/10.7.2/firebase-firestore-compat.js"></script>
+  <script src="https://www.gstatic.com/firebasejs/10.7.2/firebase-auth-compat.js"></script>
+  <script src="../js/x2BkaL9e.js"></script>
+
+  <script>
+    const listas = [
+      "UNION POR LA PATRIA", "JUNTOS POR EL CAMBIO", "LA LIBERTAD AVANZA",
+      "FRENTE DE IZQUIERDA", "VOTOS EN BLANCO", "NULOS", "RECURRIDOS"
+    ];
+
+    const formulario = document.getElementById("formulario-votos");
+
+    listas.forEach(lista => {
+      const div = document.createElement("div");
+      div.innerHTML = `
+        <label><strong>${lista}</strong></label><br>
+        Diputados: <input type="number" id="dip_${lista}" value="0" /><br>
+        Concejales: <input type="number" id="con_${lista}" value="0" /><br><br>
+      `;
+      formulario.appendChild(div);
+    });
+
+    async function guardarEscrutinio() {
+      const mesa = document.getElementById("mesa").value.trim();
+      if (!mesa) return alert("Ingresá el número de mesa");
+
+      const archivo = document.getElementById("foto").files[0];
+      if (!archivo) return alert("Subí la foto del acta");
+
+      document.getElementById("estado").innerText = "Subiendo...";
+
+      const user = firebase.auth().currentUser;
+      const dni = user.email.split("@")[0];
+
+      const votos = {};
+      listas.forEach(lista => {
+        votos[lista] = {
+          diputados: parseInt(document.getElementById("dip_" + lista).value) || 0,
+          concejales: parseInt(document.getElementById("con_" + lista).value) || 0
+        };
+      });
+
+      const formData = new FormData();
+      formData.append("file", archivo);
+      formData.append("upload_preset", "escrutinio");
+      formData.append("folder", `escrutinios/${dni}`);
+
+      const cloudRes = await fetch("https://api.cloudinary.com/v1_1/dudrnu2mq/image/upload", {
+        method: "POST",
+        body: formData
+      });
+      const cloudData = await cloudRes.json();
+      const urlFoto = cloudData.secure_url;
+
+      const db = firebase.firestore();
+      await db.collection("escrutinios").doc(mesa).set({
+        mesa,
+        dni,
+        votos,
+        urlFoto,
+        timestamp: Date.now()
+      });
+
+      document.getElementById("estado").innerText = "Guardado correctamente";
+    }
+  </script>
+</body>
+</html>
