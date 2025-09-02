@@ -24,8 +24,17 @@
   <script src="../js/x2BkaL9e.js"></script>
 
   <script>
-    const db = firebase.firestore();
+  const db = firebase.firestore();
 
+  firebase.auth().onAuthStateChanged(user => {
+    if (!user) {
+      alert("No estás autenticado");
+      return;
+    }
+    cargarResultados(); // solo si está logueado
+  });
+
+  function cargarResultados() {
     const votosDip = {};
     const votosCon = {};
 
@@ -46,36 +55,38 @@
       renderChart("graficoDiputados", votosDip);
       renderChart("graficoConcejales", votosCon);
     });
+  }
 
-    function renderChart(canvasId, data) {
-      const labels = Object.keys(data);
-      const values = Object.values(data);
+  function renderChart(canvasId, data) {
+    const labels = Object.keys(data);
+    const values = Object.values(data);
 
-      new Chart(document.getElementById(canvasId), {
-        type: "pie",
-        data: {
-          labels,
-          datasets: [{ data: values }]
-        }
+    new Chart(document.getElementById(canvasId), {
+      type: "pie",
+      data: {
+        labels,
+        datasets: [{ data: values }]
+      }
+    });
+  }
+
+  function verPlantillas() {
+    db.collection("escrutinios").get().then(snapshot => {
+      const cont = document.getElementById("plantillas-container");
+      cont.innerHTML = "";
+
+      snapshot.forEach(doc => {
+        const data = doc.data();
+        const div = document.createElement("div");
+        div.innerHTML = `
+          <h3>${data.escuela} – Mesa ${data.mesa}</h3>
+          <img src="${data.urlFoto}" style="max-width: 100%; margin-bottom: 20px" />
+        `;
+        cont.appendChild(div);
       });
-    }
+    });
+  }
+</script>
 
-    function verPlantillas() {
-      db.collection("escrutinios").get().then(snapshot => {
-        const cont = document.getElementById("plantillas-container");
-        cont.innerHTML = "";
-
-        snapshot.forEach(doc => {
-          const data = doc.data();
-          const div = document.createElement("div");
-          div.innerHTML = `
-            <h3>${data.escuela} – Mesa ${data.mesa}</h3>
-            <img src="${data.urlFoto}" style="max-width: 100%; margin-bottom: 20px" />
-          `;
-          cont.appendChild(div);
-        });
-      });
-    }
-  </script>
 </body>
 </html>
