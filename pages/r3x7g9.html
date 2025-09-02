@@ -63,11 +63,32 @@
   const labels = Object.keys(data);
   const values = Object.values(data);
 
-  const colors = labels.map(label => {
-    if (label.includes("LA LIBERTAD AVANZA")) return "#4c2882";
-    if (label.includes("FUERZA PATRIA")) return "#87CEEB";
-    return getRandomColor();
-  });
+const partidoColores = {
+  "LA LIBERTAD AVANZA": "#4c2882",
+  "FUERZA PATRIA": "#87CEEB",
+  "POTENCIA": "#f4a261",
+  "ES CON VOS": "#e76f51",
+  "FTE DE IZQ": "#e63946",
+  "SOMOS BUENOS AIRES": "#2a9d8f",
+  "NUEVOS AIRES": "#264653",
+  "UNION Y LIBERTAD": "#ffb703",
+  "UNION LIBERAL": "#219ebc",
+  "MOVIMIENTO AVANZADA": "#6a4c93",
+  "FRENTE PATRIOTA": "#b5179e",
+  "POLITICA OBRERA": "#fb8500",
+  "TIEMPO DE TODOS": "#8ecae6",
+  "CONSTRUYENDO PORVENIR": "#adb5bd",
+  "PARTIDO LIBERTARIO": "#0a9396",
+  "VALORES REPUBLICANOS": "#ff006e"
+};
+
+const colors = labels.map(label => {
+  for (const key in partidoColores) {
+    if (label.includes(key)) return partidoColores[key];
+  }
+  return "#999"; // color gris por defecto si no coincide
+});
+
 
   new Chart(document.getElementById(canvasId), {
     type: "pie",
@@ -79,15 +100,6 @@
       }]
     }
   });
-}
-
-function getRandomColor() {
-  const letters = '0123456789ABCDEF';
-  let color = '#';
-  for (let i = 0; i < 6; i++) {
-    color += letters[Math.floor(Math.random() * 16)];
-  }
-  return color;
 }
 
 
