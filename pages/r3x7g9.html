@@ -60,17 +60,36 @@
   }
 
   function renderChart(canvasId, data) {
-    const labels = Object.keys(data);
-    const values = Object.values(data);
+  const labels = Object.keys(data);
+  const values = Object.values(data);
 
-    new Chart(document.getElementById(canvasId), {
-      type: "pie",
-      data: {
-        labels,
-        datasets: [{ data: values }]
-      }
-    });
+  const colors = labels.map(label => {
+    if (label.includes("LA LIBERTAD AVANZA")) return "#4c2882";
+    if (label.includes("FUERZA PATRIA")) return "#87CEEB";
+    return getRandomColor();
+  });
+
+  new Chart(document.getElementById(canvasId), {
+    type: "pie",
+    data: {
+      labels,
+      datasets: [{
+        data: values,
+        backgroundColor: colors
+      }]
+    }
+  });
+}
+
+function getRandomColor() {
+  const letters = '0123456789ABCDEF';
+  let color = '#';
+  for (let i = 0; i < 6; i++) {
+    color += letters[Math.floor(Math.random() * 16)];
   }
+  return color;
+}
+
 
   function verPlantillas() {
     db.collection("escrutinios").get().then(snapshot => {
