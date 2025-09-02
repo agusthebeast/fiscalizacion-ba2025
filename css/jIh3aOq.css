@@ -17,21 +17,26 @@ body {
   background-attachment: fixed;
   background-position: center;
   background-repeat: no-repeat;
+  display: flex;
+justify-content: center;
+align-items: center;
+min-height: 100vh;
+flex-direction: column;
   overflow-x: hidden;
 }
 
 
 .login-container {
-width: 100%;
-max-width: 420px;
-padding: 20px;
-  margin: 40px auto;
+  width: 100%;
+  max-width: 420px;
+  padding: 30px;
   background: rgba(255, 255, 255, 0.92);
   border-radius: 12px;
   box-shadow: 0 0 20px rgba(0,0,0,0.2);
   backdrop-filter: blur(5px);
   text-align: center;
 }
+
 
 input, select {
   display: block;
