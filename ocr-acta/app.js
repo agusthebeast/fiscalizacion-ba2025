@@ -108,28 +108,49 @@ async function leerActa(file){
   return data;
 }
 
-// ---------- Parser por renglones ----------
-function normalize(s){ return s.replace(/\s+/g," ").trim(); }
-function isNumberToken(t){ return /^\d{1,3}$/.test(t); }
+// ---------- Parser por renglones (nuevo robusto con columnas) ----------
+function normalizeSpace(s){ return s.replace(/\s+/g," ").trim(); }
 
-// agrupa palabras por línea usando y promedio
+// Corrige confusiones típicas de OCR y deja sólo dígitos (1–3 cifras)
+function fixDigitChars(t){
+  if(!t) return "";
+  let s = t
+    .replace(/[Oo]/g, "0")
+    .replace(/[Ss]/g, "5")
+    .replace(/[Bb]/g, "8")
+    .replace(/[lI]/g, "1")
+    .replace(/[Z]/g, "2")
+    .replace(/[A]/g, "4"); // ocasional
+  s = s.replace(/[^0-9]/g, "");
+  // limita a 3 dígitos por casillero
+  if(s.length > 3) s = s.slice(-3);
+  return s;
+}
+function isNumLike(t){
+  const s = fixDigitChars(t);
+  return s.length >= 1 && s.length <= 3;
+}
+function asNumToken(t){
+  const s = fixDigitChars(t);
+  return /^\d{1,3}$/.test(s) ? s : "";
+}
+
+// Agrupa palabras por línea usando y medio (bin ~12px), conserva bbox
 function buildLines(words){
-  // bin de 12 px aprox para agrupar renglones
-  const lines = new Map(); // key=lineId, value={y:avgY, words:[{text,x0,x1,y0,y1}]}
+  const lines = new Map();
   for(const w of words){
     const yMid = (w.bbox.y0 + w.bbox.y1)/2;
     const lineId = Math.round(yMid/12);
     if(!lines.has(lineId)) lines.set(lineId, { y: yMid, words: [] });
     lines.get(lineId).words.push({
+      raw: w.text,
       text: w.text,
-      x0: w.bbox.x0, x1: w.bbox.x1,
-      y0: w.bbox.y0, y1: w.bbox.y1
+      x0: w.bbox.x0, x1: w.bbox.x1, y0: w.bbox.y0, y1: w.bbox.y1
     });
   }
-  // ordena líneas por y y dentro por x
   const arr = Array.from(lines.entries()).map(([id,obj])=>{
     obj.words.sort((a,b)=>a.x0-b.x0);
-    obj.text = normalize(obj.words.map(w=>w.text).join(" "));
+    obj.text = normalizeSpace(obj.words.map(w=>w.text).join(" "));
     obj.id = id;
     return obj;
   }).sort((a,b)=>a.y-b.y);
@@ -144,130 +165,151 @@ function findLineIdx(lines, needle){
   return -1;
 }
 
-function numsInLine(line){
-  return line.words.filter(w=>isNumberToken(w.text)).map(w=>({n:w.text, x:w.x0}));
+function numberTokensInLine(line){
+  // devuelve [{n, x}] sólo para tokens numéricos o num-like corregidos
+  return line.words
+    .map(w=>({ n: asNumToken(w.raw), x: w.x0 }))
+    .filter(o=>o.n);
 }
 
-function pickTwoNumbers(lines, idx){
-  if(idx<0) return ["",""];
-  let nums = numsInLine(lines[idx]);
-  if(nums.length < 2 && lines[idx+1]) nums = nums.concat(numsInLine(lines[idx+1]));
-  if(nums.length < 2 && lines[idx-1]) nums = nums.concat(numsInLine(lines[idx-1]));
-  nums.sort((a,b)=>a.x-b.x);
-  return [nums[0]?.n || "", nums[1]?.n || ""];
+// Detecta las 2 columnas numéricas por clustering 1D (x). Devuelve {c1, c2} (x-centroids ordenados)
+function detectColumns(lines){
+  const xs = [];
+  for(const ln of lines){
+    for(const tok of numberTokensInLine(ln)){
+      xs.push(tok.x);
+    }
+  }
+  if(xs.length < 2){
+    return null; // no se puede clusterizar; se usará fallback
+  }
+  xs.sort((a,b)=>a-b);
+  // inicialización: percentil 25 y 75
+  const p = (arr, q)=>arr[Math.max(0, Math.min(arr.length-1, Math.floor(q*(arr.length-1))))];
+  let c1 = p(xs, 0.25), c2 = p(xs, 0.75);
+  // 5 iteraciones de k-means 1D
+  for(let it=0; it<5; it++){
+    const g1 = [], g2 = [];
+    for(const x of xs){
+      (Math.abs(x-c1) <= Math.abs(x-c2) ? g1 : g2).push(x);
+    }
+    if(g1.length) c1 = g1.reduce((a,b)=>a+b,0)/g1.length;
+    if(g2.length) c2 = g2.reduce((a,b)=>a+b,0)/g2.length;
+  }
+  // ordena izq→der
+  if(c1 > c2){ const t=c1; c1=c2; c2=t; }
+  return { c1, c2 };
+}
+
+// Toma dos números para una línea índice i usando columnas detectadas.
+// Busca en línea i, luego i+1 y i-1, asigna por cercanía a centroides.
+function pickTwoNumbersByColumns(lines, idx, cols){
+  const bag = [];
+  const pushNums = (ln)=>{
+    if(!ln) return;
+    for(const tok of numberTokensInLine(ln)){
+      bag.push({ n: tok.n, x: tok.x });
+    }
+  };
+  pushNums(lines[idx]);
+  pushNums(lines[idx+1]);
+  pushNums(lines[idx-1]);
+
+  if(!bag.length){
+    return ["",""]; // sin números cerca
+  }
+  if(!cols){
+    // fallback: dos más a la derecha en X
+    bag.sort((a,b)=>a.x-b.x);
+    return [bag[bag.length-2]?.n || "", bag[bag.length-1]?.n || ""];
+  }
+
+  // asignación por cercanía a centroides
+  let bestL = null, bestR = null, dL = 1e9, dR = 1e9;
+  for(const t of bag){
+    const d1 = Math.abs(t.x - cols.c1);
+    const d2 = Math.abs(t.x - cols.c2);
+    if(d1 <= d2){
+      if(d1 < dL) { dL = d1; bestL = t.n; }
+    } else {
+      if(d2 < dR) { dR = d2; bestR = t.n; }
+    }
+  }
+  return [bestL || "", bestR || ""];
 }
 
 function parseByLines(ocrData){
   limpiarTabla();
 
   const lines = buildLines(ocrData.words || []);
-  // Campo cabecera: distrito / circuito / mesa
+  const cols = detectColumns(lines); // {c1,c2} o null
+
+  // Cabeceras (mejor intento: toma el primer número tras la palabra clave)
   const idxDist = findLineIdx(lines, "Distrito");
   const idxCirc = findLineIdx(lines, "Circuito");
   const idxMesa = findLineIdx(lines, "Mesa");
 
-  $("inpDistrito").value ||= (()=>{
-    if(idxDist<0) return "";
-    const nums = numsInLine(lines[idxDist]).map(x=>x.n);
-    return nums[0] ? nums[0] : "";
-  })();
+  if(idxDist>=0){
+    const nums = numberTokensInLine(lines[idxDist]).map(x=>x.n);
+    $("inpDistrito").value = $("inpDistrito").value || (nums[0] || "");
+  }
+  if(idxCirc>=0){
+    const nums = numberTokensInLine(lines[idxCirc]).map(x=>x.n);
+    $("inpCircuito").value = $("inpCircuito").value || (nums[0] || "");
+  }
+  if(idxMesa>=0){
+    const nums = numberTokensInLine(lines[idxMesa]).map(x=>x.n);
+    $("inpMesa").value = $("inpMesa").value || (nums[0] || "");
+  }
 
-  $("inpCircuito").value ||= (()=>{
-    if(idxCirc<0) return "";
-    const nums = numsInLine(lines[idxCirc]).map(x=>x.n);
-    return nums[0] ? nums[0] : "";
-  })();
-
-  $("inpMesa").value ||= (()=>{
-    if(idxMesa<0) return "";
-    const nums = numsInLine(lines[idxMesa]).map(x=>x.n);
-    return nums[0] ? nums[0] : "";
-  })();
-
-  // Partidos: busca línea del nombre y toma dos números (dip/con) de esa o la siguiente
+  // Partidos → dos números por columnas
   for(const p of partidos){
     const i = findLineIdx(lines, p);
-    const [dip, con] = pickTwoNumbers(lines, i);
+    const [dip, con] = pickTwoNumbersByColumns(lines, i, cols);
     ponerFila(p, dip, con);
   }
 
-  // Totales y otros campos
-  // Total votos agrupaciones
+  // Totales y otros (siempre usando columnas detectadas)
   let iTot = findLineIdx(lines, "TOTAL VOTOS AGRUPACIONES");
   if(iTot<0) iTot = findLineIdx(lines, "AGRUPACIONES POLITICAS");
   if(iTot>=0){
-    const [d,c] = pickTwoNumbers(lines, iTot);
+    const [d,c] = pickTwoNumbersByColumns(lines, iTot, cols);
     $("totDip").textContent = d || "—";
     $("totCon").textContent = c || "—";
   }
 
-  // Votos en blanco
   const iBl = findLineIdx(lines, "VOTOS EN BLANCO");
   if(iBl>=0){
-    const [d,c] = pickTwoNumbers(lines, iBl);
+    const [d,c] = pickTwoNumbersByColumns(lines, iBl, cols);
     $("blDip").textContent = d || "—";
     $("blCon").textContent = c || "—";
   }
 
-  // Impugnados
   const iImp = findLineIdx(lines, "IDENTIDAD IMPUGNADA");
   if(iImp>=0){
-    const [d] = pickTwoNumbers(lines, iImp);
+    const [d] = pickTwoNumbersByColumns(lines, iImp, cols);
     $("imp").textContent = d || "0";
   } else {
     $("imp").textContent = "0";
   }
 
-  // Sobre N° 3
   let iS3 = findLineIdx(lines, "SOBRE N");
   if(iS3<0) iS3 = findLineIdx(lines, "SOBRE 3");
   if(iS3>=0){
-    const [d,c] = pickTwoNumbers(lines, iS3);
+    const [d,c] = pickTwoNumbersByColumns(lines, iS3, cols);
     $("sob3Dip").textContent = d || "—";
     $("sob3Con").textContent = c || "—";
   }
 
-  // Suma Total de votos
   const iSum = findLineIdx(lines, "SUMA TOTAL DE VOTOS");
   if(iSum>=0){
-    const [d,c] = pickTwoNumbers(lines, iSum);
+    const [d,c] = pickTwoNumbersByColumns(lines, iSum, cols);
     $("sumDip").textContent = d || "—";
     $("sumCon").textContent = c || "—";
     if(d && c) $("sumTag").textContent = `Suma total: ${d} / ${c}`;
   }
 }
 
-// ---------- Eventos UI ----------
-$("btnLeer").addEventListener("click", async ()=>{
-  const f = $("fileActa").files?.[0];
-  if(!f){ showToast("Subí una foto del acta.", false); return; }
-  try { await leerActa(f); }
-  catch(e){ console.error(e); showToast("Error corriendo OCR", false); }
-});
-
-$("btnEditar").addEventListener("click", ()=>{
-  [...tbody.querySelectorAll("td:nth-child(2), td:nth-child(3)")].forEach(td=>td.contentEditable="true");
-  showToast("Edición habilitada");
-});
-$("btnConfirmar").addEventListener("click", openModal);
-$("cancelConf").addEventListener("click", closeModal);
-$("okConf").addEventListener("click", async ()=>{
-  closeModal();
-  try{
-    const payload = construirPayload();
-    const imgFile = $("fileActa").files?.[0];
-    if(!imgFile){ showToast("Falta la imagen", false); return; }
-
-    const imgUrl = await subirCloudinary(imgFile);
-    payload.foto_url = imgUrl;
-    await guardarFirestore(payload);
-
-    showToast("Guardado OK");
-  }catch(e){
-    console.error(e);
-    showToast("Fallo al guardar", false);
-  }
-});
 
 // ---------- Construir datos ----------
 function construirPayload(){
