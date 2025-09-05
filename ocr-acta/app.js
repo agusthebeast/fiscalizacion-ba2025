@@ -10,7 +10,7 @@ function showToast(msg, ok=true){
 function openModal(){ $("modalConf").style.display="flex"; }
 function closeModal(){ $("modalConf").style.display="none"; }
 
-// ---------- partidos + patrones ----------
+// ---------- partidos ----------
 const partidos = [
   "Fuerza Patria",
   "Potencia",
@@ -29,12 +29,10 @@ const partidos = [
   "Partido Libertario",
   "Valores Republicanos"
 ];
-const patrones = partidos.map(p => ({
-  nombre: p,
-  re: new RegExp(p.replace(/[.*+?^${}()|[\]\\]/g, "\\$&") + "[^\\n\\r]*?(\\d{1,3})[^\\n\\r]*?(\\d{1,3})", "i")
-}));
 
 const tbody = document.querySelector("#tablaResultados tbody");
+
+// ---------- Helpers tabla ----------
 function limpiarTabla(){
   tbody.innerHTML = "";
   ["totDip","totCon","blDip","blCon","imp","sob3Dip","sob3Con","sumDip","sumCon"].forEach(id=>$(id).textContent="—");
@@ -52,39 +50,191 @@ function ponerFila(nombre, d, c, editable=false){
   tr.append(tdN, tdD, tdC);
   tbody.appendChild(tr);
 }
-function parsear(texto){
-  limpiarTabla();
-  const out = {};
-  patrones.forEach(p=>{
-    const m = texto.match(p.re);
-    const d = m ? m[1] : "";
-    const c = m ? m[2] : "";
-    out[p.nombre] = {dip:d, con:c};
-    ponerFila(p.nombre, d, c);
+
+// ---------- Preproceso de imagen (mejora OCR) ----------
+function preprocessImage(file){
+  return new Promise((resolve,reject)=>{
+    const img = new Image();
+    img.onload = ()=>{
+      const scale = 1.8; // subir resolución
+      const w = Math.round(img.width*scale);
+      const h = Math.round(img.height*scale);
+      const canvas = document.createElement("canvas");
+      canvas.width = w; canvas.height = h;
+      const ctx = canvas.getContext("2d");
+      ctx.drawImage(img, 0, 0, w, h);
+      // Gris + binarizado
+      const imgData = ctx.getImageData(0,0,w,h);
+      const d = imgData.data;
+      for(let i=0;i<d.length;i+=4){
+        const g = 0.299*d[i] + 0.587*d[i+1] + 0.114*d[i+2];
+        const bw = g > 185 ? 255 : 0; // umbral suave
+        d[i]=d[i+1]=d[i+2]=bw;
+      }
+      ctx.putImageData(imgData,0,0);
+      resolve(canvas.toDataURL("image/png"));
+    };
+    img.onerror = reject;
+    const fr = new FileReader();
+    fr.onload = e => { img.src = e.target.result; };
+    fr.readAsDataURL(file);
   });
-  const pickNum = (re)=> (texto.match(re)||[])[1] || "";
-  $("totDip").textContent = pickNum(/TOTAL VOTOS AGRUPACIONES.*?(\d{1,3})/is);
-  $("totCon").textContent = pickNum(/TOTAL VOTOS AGRUPACIONES[\s\S]*?\n.*?(\d{1,3})/im) || pickNum(/AGRUPACIONES POLITICAS.*?\n.*?(\d{1,3})/is);
-  $("blDip").textContent  = pickNum(/VOTOS EN BLANCO.*?(\d{1,3})/is);
-  $("blCon").textContent  = (texto.match(/VOTOS EN BLANCO[\s\S]*?\n.*?(\d{1,3})/i)||[])[1] || "";
-  $("imp").textContent    = pickNum(/IDENTIDAD IMPUGNADA.*?(\d{1,3})/is) || "0";
-  const sob3 = texto.match(/SOBRE\s*N[º°]\s*3.*?(\d{1,3})[\s\S]*?(\d{1,3})/i);
-  if(sob3){ $("sob3Dip").textContent = sob3[1]; $("sob3Con").textContent = sob3[2]; }
-  const sum = texto.match(/SUMA TOTAL DE VOTOS.*?(\d{1,3})[\s\S]*?(\d{1,3})/i);
-  if(sum){ $("sumDip").textContent = sum[1]; $("sumCon").textContent = sum[2]; $("sumTag").textContent = `Suma total: ${sum[1]} / ${sum[2]}`; }
-  return out;
 }
 
-// ---------- OCR ----------
+// ---------- OCR con worker (PSM=6, preserva espacios) ----------
 async function leerActa(file){
   $("ocrStatus").textContent = "Procesando OCR…";
-  const { data } = await Tesseract.recognize(file, 'spa', {
-    tessedit_char_whitelist: 'ABCDEFGHIJKLMNOPQRSTUVWXYZÁÉÍÓÚÑabcdefghijklmnopqrstuvwxyzáéíóñ 0123456789-./º°',
+  const pre = await preprocessImage(file);
+
+  // Worker de Tesseract con params finos
+  const { createWorker } = Tesseract;
+  const worker = await createWorker("spa+eng", 1, {
+    logger: m => { /* opcional: console.log(m) */ }
   });
+  await worker.setParameters({
+    tessedit_pageseg_mode: "6",               // una columna uniforme de texto
+    preserve_interword_spaces: "1",
+    tessedit_char_whitelist: "ABCDEFGHIJKLMNOPQRSTUVWXYZÁÉÍÓÚÑabcdefghijklmnopqrstuvwxyzáéíóúñ 0123456789-./º°",
+  });
+
+  const { data } = await worker.recognize(pre);
+  await worker.terminate();
+
   $("ocrStatus").textContent = "Listo";
   $("confTag").textContent = "Conf: " + (data.confidence ? data.confidence.toFixed(1) + "%" : "—");
-  parsear(data.text);
+
+  // Parse robusto con bbox por renglones
+  parseByLines(data);
   return data;
+}
+
+// ---------- Parser por renglones ----------
+function normalize(s){ return s.replace(/\s+/g," ").trim(); }
+function isNumberToken(t){ return /^\d{1,3}$/.test(t); }
+
+// agrupa palabras por línea usando y promedio
+function buildLines(words){
+  // bin de 12 px aprox para agrupar renglones
+  const lines = new Map(); // key=lineId, value={y:avgY, words:[{text,x0,x1,y0,y1}]}
+  for(const w of words){
+    const yMid = (w.bbox.y0 + w.bbox.y1)/2;
+    const lineId = Math.round(yMid/12);
+    if(!lines.has(lineId)) lines.set(lineId, { y: yMid, words: [] });
+    lines.get(lineId).words.push({
+      text: w.text,
+      x0: w.bbox.x0, x1: w.bbox.x1,
+      y0: w.bbox.y0, y1: w.bbox.y1
+    });
+  }
+  // ordena líneas por y y dentro por x
+  const arr = Array.from(lines.entries()).map(([id,obj])=>{
+    obj.words.sort((a,b)=>a.x0-b.x0);
+    obj.text = normalize(obj.words.map(w=>w.text).join(" "));
+    obj.id = id;
+    return obj;
+  }).sort((a,b)=>a.y-b.y);
+  return arr;
+}
+
+function findLineIdx(lines, needle){
+  const n = needle.toLowerCase();
+  for(let i=0;i<lines.length;i++){
+    if(lines[i].text.toLowerCase().includes(n)) return i;
+  }
+  return -1;
+}
+
+function numsInLine(line){
+  return line.words.filter(w=>isNumberToken(w.text)).map(w=>({n:w.text, x:w.x0}));
+}
+
+function pickTwoNumbers(lines, idx){
+  if(idx<0) return ["",""];
+  let nums = numsInLine(lines[idx]);
+  if(nums.length < 2 && lines[idx+1]) nums = nums.concat(numsInLine(lines[idx+1]));
+  if(nums.length < 2 && lines[idx-1]) nums = nums.concat(numsInLine(lines[idx-1]));
+  nums.sort((a,b)=>a.x-b.x);
+  return [nums[0]?.n || "", nums[1]?.n || ""];
+}
+
+function parseByLines(ocrData){
+  limpiarTabla();
+
+  const lines = buildLines(ocrData.words || []);
+  // Campo cabecera: distrito / circuito / mesa
+  const idxDist = findLineIdx(lines, "Distrito");
+  const idxCirc = findLineIdx(lines, "Circuito");
+  const idxMesa = findLineIdx(lines, "Mesa");
+
+  $("inpDistrito").value ||= (()=>{
+    if(idxDist<0) return "";
+    const nums = numsInLine(lines[idxDist]).map(x=>x.n);
+    return nums[0] ? nums[0] : "";
+  })();
+
+  $("inpCircuito").value ||= (()=>{
+    if(idxCirc<0) return "";
+    const nums = numsInLine(lines[idxCirc]).map(x=>x.n);
+    return nums[0] ? nums[0] : "";
+  })();
+
+  $("inpMesa").value ||= (()=>{
+    if(idxMesa<0) return "";
+    const nums = numsInLine(lines[idxMesa]).map(x=>x.n);
+    return nums[0] ? nums[0] : "";
+  })();
+
+  // Partidos: busca línea del nombre y toma dos números (dip/con) de esa o la siguiente
+  for(const p of partidos){
+    const i = findLineIdx(lines, p);
+    const [dip, con] = pickTwoNumbers(lines, i);
+    ponerFila(p, dip, con);
+  }
+
+  // Totales y otros campos
+  // Total votos agrupaciones
+  let iTot = findLineIdx(lines, "TOTAL VOTOS AGRUPACIONES");
+  if(iTot<0) iTot = findLineIdx(lines, "AGRUPACIONES POLITICAS");
+  if(iTot>=0){
+    const [d,c] = pickTwoNumbers(lines, iTot);
+    $("totDip").textContent = d || "—";
+    $("totCon").textContent = c || "—";
+  }
+
+  // Votos en blanco
+  const iBl = findLineIdx(lines, "VOTOS EN BLANCO");
+  if(iBl>=0){
+    const [d,c] = pickTwoNumbers(lines, iBl);
+    $("blDip").textContent = d || "—";
+    $("blCon").textContent = c || "—";
+  }
+
+  // Impugnados
+  const iImp = findLineIdx(lines, "IDENTIDAD IMPUGNADA");
+  if(iImp>=0){
+    const [d] = pickTwoNumbers(lines, iImp);
+    $("imp").textContent = d || "0";
+  } else {
+    $("imp").textContent = "0";
+  }
+
+  // Sobre N° 3
+  let iS3 = findLineIdx(lines, "SOBRE N");
+  if(iS3<0) iS3 = findLineIdx(lines, "SOBRE 3");
+  if(iS3>=0){
+    const [d,c] = pickTwoNumbers(lines, iS3);
+    $("sob3Dip").textContent = d || "—";
+    $("sob3Con").textContent = c || "—";
+  }
+
+  // Suma Total de votos
+  const iSum = findLineIdx(lines, "SUMA TOTAL DE VOTOS");
+  if(iSum>=0){
+    const [d,c] = pickTwoNumbers(lines, iSum);
+    $("sumDip").textContent = d || "—";
+    $("sumCon").textContent = c || "—";
+    if(d && c) $("sumTag").textContent = `Suma total: ${d} / ${c}`;
+  }
 }
 
 // ---------- Eventos UI ----------
@@ -108,10 +258,7 @@ $("okConf").addEventListener("click", async ()=>{
     const imgFile = $("fileActa").files?.[0];
     if(!imgFile){ showToast("Falta la imagen", false); return; }
 
-    // 1) Subir foto a Cloudinary (unsigned)
     const imgUrl = await subirCloudinary(imgFile);
-
-    // 2) Guardar en Firestore
     payload.foto_url = imgUrl;
     await guardarFirestore(payload);
 
@@ -122,7 +269,7 @@ $("okConf").addEventListener("click", async ()=>{
   }
 });
 
-// ---------- Construir datos desde la tabla ----------
+// ---------- Construir datos ----------
 function construirPayload(){
   const filas = [...tbody.querySelectorAll("tr")].map(tr=>{
     const tds = tr.querySelectorAll("td");
@@ -141,20 +288,19 @@ function construirPayload(){
       sobre3: { diputados: $("sob3Dip").textContent.trim(), concejales: $("sob3Con").textContent.trim() },
       suma: { diputados: $("sumDip").textContent.trim(), concejales: $("sumCon").textContent.trim() }
     },
-    ocr_conf: $("confTag").textContent.replace("Conf:","").trim(),
     created_at: new Date().toISOString()
   };
 }
 
 // ---------- Cloudinary ----------
-const CLOUD_NAME = "dudrnu2mq";         // (tu proyecto para actas)
-const UPLOAD_PRESET = "escrutinio";     // unsigned
+const CLOUD_NAME = "dudrnu2mq";
+const UPLOAD_PRESET = "escrutinio";
 async function subirCloudinary(file){
   const url = `https://api.cloudinary.com/v1_1/${CLOUD_NAME}/image/upload`;
   const form = new FormData();
   form.append("file", file);
   form.append("upload_preset", UPLOAD_PRESET);
-  form.append("folder", "actas"); // carpeta opcional
+  form.append("folder", "actas");
   const r = await fetch(url, { method:"POST", body: form });
   if(!r.ok) throw new Error("Cloudinary error");
   const j = await r.json();
@@ -163,7 +309,6 @@ async function subirCloudinary(file){
 
 // ---------- Firestore ----------
 async function guardarFirestore(payload){
-  // login anónimo
   if(!firebase.auth().currentUser){
     await firebase.auth().signInAnonymously();
   }
