@@ -82,31 +82,28 @@ function preprocessImage(file){
 }
 
 // ---------- OCR con worker (PSM=6, preserva espacios) ----------
+// ---------- OCR estable (sin worker) ----------
 async function leerActa(file){
   $("ocrStatus").textContent = "Procesando OCR…";
-  const pre = await preprocessImage(file);
-
-  // Worker de Tesseract con params finos
-  const { createWorker } = Tesseract;
-  const worker = await createWorker("spa+eng", 1, {
-    logger: m => { /* opcional: console.log(m) */ }
-  });
-  await worker.setParameters({
-    tessedit_pageseg_mode: "6",               // una columna uniforme de texto
-    preserve_interword_spaces: "1",
-    tessedit_char_whitelist: "ABCDEFGHIJKLMNOPQRSTUVWXYZÁÉÍÓÚÑabcdefghijklmnopqrstuvwxyzáéíóúñ 0123456789-./º°",
-  });
-
-  const { data } = await worker.recognize(pre);
-  await worker.terminate();
-
-  $("ocrStatus").textContent = "Listo";
-  $("confTag").textContent = "Conf: " + (data.confidence ? data.confidence.toFixed(1) + "%" : "—");
-
-  // Parse robusto con bbox por renglones
-  parseByLines(data);
-  return data;
+  try{
+    const { data } = await Tesseract.recognize(file, 'spa', {
+      // PSM 6 aproximado (en recognize va mejor sin parámetros raros)
+      // Dejamos logger para ver progreso si hace falta
+      logger: m => { /* console.log(m); */ }
+    });
+    $("ocrStatus").textContent = "Listo";
+    $("confTag").textContent = "Conf: " + (data.confidence ? data.confidence.toFixed(1) + "%" : "—");
+    // Usa el PARSER POR RENGLONES con columnas que ya tenés
+    parseByLines(data);
+    return data;
+  }catch(e){
+    console.error(e);
+    $("ocrStatus").textContent = "Error OCR";
+    showToast("Error corriendo OCR", false);
+    throw e;
+  }
 }
+
 
 // ---------- Parser por renglones (nuevo robusto con columnas) ----------
 function normalizeSpace(s){ return s.replace(/\s+/g," ").trim(); }
