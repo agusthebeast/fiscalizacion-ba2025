@@ -1,0 +1,105 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>OCR de Acta – Fiscalización</title>
+  <link rel="stylesheet" href="style.css">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Montserrat:wght@400;600&display=swap">
+
+  <!-- Tesseract (OCR) -->
+  <script src="https://cdn.jsdelivr.net/npm/tesseract.js@5.0.5/dist/tesseract.min.js"></script>
+
+  <!-- Firebase (Auth + Firestore) -->
+  <script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-app-compat.js"></script>
+  <script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-auth-compat.js"></script>
+  <script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore-compat.js"></script>
+</head>
+<body>
+  <main class="wrap">
+    <h1>Lectura de Actas (OCR)</h1>
+
+    <section class="card">
+      <div class="grid">
+        <label>Distrito
+          <input id="inpDistrito" placeholder="p.ej. 109 - San Vicente">
+        </label>
+        <label>Circuito
+          <input id="inpCircuito" placeholder="p.ej. 925">
+        </label>
+        <label>Mesa
+          <input id="inpMesa" placeholder="p.ej. 89">
+        </label>
+      </div>
+
+      <div class="row">
+        <input type="file" id="fileActa" accept="image/*" />
+        <button class="btn primary" id="btnLeer">Leer acta (OCR)</button>
+        <span class="status" id="ocrStatus">—</span>
+      </div>
+
+      <div class="meta">
+        <span class="tag" id="confTag">Conf: —</span>
+        <span class="tag" id="sumTag">Suma total: — / —</span>
+      </div>
+
+      <h3>Resultados detectados</h3>
+      <div class="scroll">
+        <table id="tablaResultados">
+          <thead>
+            <tr><th>Partido</th><th>Diputados</th><th>Concejales</th></tr>
+          </thead>
+          <tbody></tbody>
+          <tfoot>
+            <tr><th>Total votos agrupaciones</th><td id="totDip">—</td><td id="totCon">—</td></tr>
+            <tr><th>Votos en blanco</th>        <td id="blDip">—</td><td id="blCon">—</td></tr>
+            <tr><th>Identidad impugnada</th>    <td id="imp">—</td><td>—</td></tr>
+            <tr><th>Sobre N°3</th>              <td id="sob3Dip">—</td><td id="sob3Con">—</td></tr>
+            <tr><th><b>Suma total</b></th>      <td id="sumDip"><b>—</b></td><td id="sumCon"><b>—</b></td></tr>
+          </tfoot>
+        </table>
+      </div>
+
+      <div class="row end">
+        <button class="btn" id="btnEditar">Editar a mano</button>
+        <button class="btn primary" id="btnConfirmar">Confirmar y guardar</button>
+      </div>
+      <div class="hint">No usamos <code>alert()</code>. Se muestran cuadros visuales.</div>
+    </section>
+
+    <!-- Mensaje visual -->
+    <div class="toast" id="toast"></div>
+  </main>
+
+  <!-- Modal Confirmación -->
+  <div class="modal" id="modalConf">
+    <div class="card modal-card">
+      <h2>¿Confirmar carga?</h2>
+      <p>Revisá los valores. Si están correctos, confirmá para subir la foto y guardar los datos.</p>
+      <div class="row end">
+        <button class="btn" id="cancelConf">Cancelar</button>
+        <button class="btn primary" id="okConf">Confirmar</button>
+      </div>
+    </div>
+  </div>
+
+  <script>
+  // === Firebase ===
+  // Proyecto fiscalización (provisto por vos)
+  const firebaseConfig = {
+    apiKey: "AIzaSyBBzTZfg0OfP0ESC6Gm3YixAmumVtGqjq0",
+    authDomain: "fiscalizacionba2025.firebaseapp.com",
+    projectId: "fiscalizacionba2025",
+    storageBucket: "fiscalizacionba2025.firebasestorage.app",
+    messagingSenderId: "565741056892",
+    appId: "1:565741056892:web:28c7c807e410f8577e6af9"
+  };
+  firebase.initializeApp(firebaseConfig);
+  const auth = firebase.auth();
+  const db   = firebase.firestore();
+  </script>
+
+  <script src="app.js"></script>
+</body>
+</html>
