@@ -3,30 +3,23 @@
 <head>
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1" />
-  <title>OCR de Acta – Fiscalización</title>
+  <title>OCR Acta – Fiscalización</title>
   <link rel="stylesheet" href="style.css">
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Montserrat:wght@400;600&display=swap">
-
-  <!-- Tesseract (OCR) -->
+  <!-- Tesseract -->
   <script defer src="https://cdn.jsdelivr.net/npm/tesseract.js@5.0.5/dist/tesseract.min.js"></script>
-
-  <!-- Firebase (Auth + Firestore) -->
-  <script defer src="https://www.gstatic.com/firebasejs/10.12.2/firebase-app-compat.js"></script>
-  <script defer src="https://www.gstatic.com/firebasejs/10.12.2/firebase-auth-compat.js"></script>
-  <script defer src="https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore-compat.js"></script>
-
   <!-- App -->
-  <script defer src="app.js?v=4"></script>
+  <script defer src="app.js?v=20"></script>
 </head>
 <body>
   <main class="wrap">
-    <h1>Lectura de Actas (OCR)</h1>
+    <h1>Lectura exacta de Actas</h1>
 
     <section class="card">
       <div class="grid">
         <label>Distrito
-          <input id="inpDistrito" placeholder="109 - San Vicente">
+          <input id="inpDistrito" placeholder="109">
         </label>
         <label>Circuito
           <input id="inpCircuito" placeholder="925">
@@ -45,6 +38,10 @@
       <div class="meta">
         <span class="tag" id="confTag">Conf: —</span>
         <span class="tag" id="sumTag">Suma total: — / —</span>
+      </div>
+
+      <div class="row">
+        <canvas id="cnv" style="display:none"></canvas>
       </div>
 
       <h3>Resultados detectados</h3>
@@ -66,24 +63,10 @@
 
       <div class="row end">
         <button class="btn" id="btnEditar">Editar a mano</button>
-        <button class="btn primary" id="btnConfirmar">Confirmar y guardar</button>
       </div>
-      <div class="hint">Sin <code>alert()</code>. Se usan cuadros visuales.</div>
     </section>
 
     <div class="toast" id="toast"></div>
   </main>
-
-  <!-- Modal Confirmación -->
-  <div class="modal" id="modalConf">
-    <div class="card modal-card">
-      <h2>¿Confirmar carga?</h2>
-      <p>Revisá los valores. Si están correctos, confirmá para subir la foto y guardar los datos.</p>
-      <div class="row end">
-        <button class="btn" id="cancelConf">Cancelar</button>
-        <button class="btn primary" id="okConf">Confirmar</button>
-      </div>
-    </div>
-  </div>
 </body>
 </html>
