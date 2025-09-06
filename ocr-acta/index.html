@@ -3,30 +3,25 @@
 <head>
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1" />
-  <title>OCR Acta – Fiscalización</title>
-  <link rel="stylesheet" href="style.css">
+  <title>OCR Acta – Preciso (OpenCV + Tesseract)</title>
+  <link rel="stylesheet" href="style.css" />
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Montserrat:wght@400;600&display=swap">
+  <!-- OpenCV.js -->
+  <script defer src="https://docs.opencv.org/4.x/opencv.js"></script>
   <!-- Tesseract -->
   <script defer src="https://cdn.jsdelivr.net/npm/tesseract.js@5.0.5/dist/tesseract.min.js"></script>
   <!-- App -->
-  <script defer src="app.js?v=20"></script>
+  <script defer src="app.js?v=100"></script>
 </head>
 <body>
   <main class="wrap">
     <h1>Lectura exacta de Actas</h1>
-
     <section class="card">
       <div class="grid">
-        <label>Distrito
-          <input id="inpDistrito" placeholder="109">
-        </label>
-        <label>Circuito
-          <input id="inpCircuito" placeholder="925">
-        </label>
-        <label>Mesa
-          <input id="inpMesa" placeholder="89">
-        </label>
+        <label>Distrito <input id="inpDistrito" placeholder=""></label>
+        <label>Circuito <input id="inpCircuito" placeholder=""></label>
+        <label>Mesa     <input id="inpMesa" placeholder=""></label>
       </div>
 
       <div class="row">
@@ -40,16 +35,14 @@
         <span class="tag" id="sumTag">Suma total: — / —</span>
       </div>
 
-      <div class="row">
-        <canvas id="cnv" style="display:none"></canvas>
-      </div>
+      <!-- canvases ocultos para depuración si hace falta -->
+      <canvas id="cvIn"  style="display:none"></canvas>
+      <canvas id="cvBin" style="display:none"></canvas>
 
       <h3>Resultados detectados</h3>
       <div class="scroll">
         <table id="tablaResultados">
-          <thead>
-            <tr><th>Partido</th><th>Diputados</th><th>Concejales</th></tr>
-          </thead>
+          <thead><tr><th>Partido</th><th>Diputados</th><th>Concejales</th></tr></thead>
           <tbody></tbody>
           <tfoot>
             <tr><th>Total votos agrupaciones</th><td id="totDip">—</td><td id="totCon">—</td></tr>
@@ -65,7 +58,6 @@
         <button class="btn" id="btnEditar">Editar a mano</button>
       </div>
     </section>
-
     <div class="toast" id="toast"></div>
   </main>
 </body>
