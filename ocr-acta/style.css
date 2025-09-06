@@ -20,3 +20,10 @@ th{background:#fafafe;text-align:left}
 .toast{position:fixed;left:50%;bottom:24px;transform:translateX(-50%);background:#fff;padding:12px 16px;border-radius:12px;border:1px solid #ddd;box-shadow:0 12px 40px rgba(0,0,0,.15);display:none;z-index:10000}
 .toast.ok{border-color:#cfe7cf}
 .toast.err{border-color:#f2c6c6}
+button.volver {
+  background: transparent;
+  color: #4c2882;
+  font-weight: bold;
+  border: none;
+  font-size: 16px;
+}
