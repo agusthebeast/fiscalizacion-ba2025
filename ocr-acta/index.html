@@ -7,16 +7,18 @@
   <link rel="stylesheet" href="style.css" />
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Montserrat:wght@400;600&display=swap">
-  <!-- OpenCV.js -->
-  <script defer src="https://docs.opencv.org/4.x/opencv.js"></script>
+
+  <!-- OpenCV.js (CDN estable) -->
+  <script async src="https://cdn.jsdelivr.net/npm/@techstark/opencv-js@4.9.0-1/opencv.js"></script>
   <!-- Tesseract -->
   <script defer src="https://cdn.jsdelivr.net/npm/tesseract.js@5.0.5/dist/tesseract.min.js"></script>
   <!-- App -->
-  <script defer src="app.js?v=100"></script>
+  <script defer src="app.js?v=110"></script>
 </head>
 <body>
   <main class="wrap">
     <h1>Lectura exacta de Actas</h1>
+
     <section class="card">
       <div class="grid">
         <label>Distrito <input id="inpDistrito" placeholder=""></label>
@@ -26,7 +28,7 @@
 
       <div class="row">
         <input type="file" id="fileActa" accept="image/*" />
-        <button class="btn primary" id="btnLeer">Leer acta (OCR)</button>
+        <button class="btn primary" id="btnLeer" disabled>Cargando OCR…</button>
         <span class="status" id="ocrStatus">—</span>
       </div>
 
@@ -35,7 +37,7 @@
         <span class="tag" id="sumTag">Suma total: — / —</span>
       </div>
 
-      <!-- canvases ocultos para depuración si hace falta -->
+      <!-- canvases ocultos (debug) -->
       <canvas id="cvIn"  style="display:none"></canvas>
       <canvas id="cvBin" style="display:none"></canvas>
 

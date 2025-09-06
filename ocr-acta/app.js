@@ -1,8 +1,38 @@
-// ================== Boot ==================
-let cvReady=false;
-document.addEventListener("DOMContentLoaded", () => {
-  if (window.cv) cv['onRuntimeInitialized'] = ()=>{ cvReady=true; };
-  $("btnLeer").addEventListener("click", run);
+// ===== util DOM =====
+const $ = id => document.getElementById(id);
+const tbody = () => document.querySelector("#tablaResultados tbody");
+function toast(m,ok=true){ const t=$("toast"); t.textContent=m; t.className="toast "+(ok?"ok":"err"); t.style.display="block"; setTimeout(()=>t.style.display="none",2200); }
+function clearTable(){
+  tbody().innerHTML="";
+  ["totDip","totCon","blDip","blCon","imp","sob3Dip","sob3Con","sumDip","sumCon"].forEach(id=>$(id).textContent="—");
+  $("sumTag").textContent="Suma total: — / —";
+}
+function addRow(name, d, c){
+  const tr=document.createElement("tr");
+  tr.innerHTML=`<td>${name}</td><td>${d||""}</td><td>${c||""}</td>`;
+  tbody().appendChild(tr);
+}
+
+// ===== espera robusta de OpenCV =====
+function waitForCV() {
+  return new Promise((resolve) => {
+    if (window.cv && cv.getBuildInformation) return resolve();
+    window.Module = window.Module || {};
+    const prev = window.Module.onRuntimeInitialized;
+    window.Module.onRuntimeInitialized = () => { if (typeof prev==="function") prev(); resolve(); };
+    const t = setInterval(()=>{ if (window.cv && cv.getBuildInformation){ clearInterval(t); resolve(); } }, 50);
+    setTimeout(()=>resolve(), 10000);
+  });
+}
+
+// ===== boot =====
+document.addEventListener("DOMContentLoaded", async () => {
+  const btn = $("btnLeer");
+  btn.disabled = true; btn.textContent = "Cargando OCR…";
+  await waitForCV();
+  btn.disabled = false; btn.textContent = "Leer acta (OCR)";
+
+  btn.addEventListener("click", run);
   $("btnEditar").addEventListener("click", ()=>{
     [...document.querySelectorAll("#tablaResultados td:nth-child(2),#tablaResultados td:nth-child(3)")]
       .forEach(td=>td.contentEditable="true");
@@ -10,28 +40,14 @@ document.addEventListener("DOMContentLoaded", () => {
   });
 });
 
-const $ = id => document.getElementById(id);
-const tbody = () => document.querySelector("#tablaResultados tbody");
-function toast(m,ok=true){ const t=$("toast"); t.textContent=m; t.className="toast "+(ok?"ok":"err"); t.style.display="block"; setTimeout(()=>t.style.display="none",2200); }
-
-// ================== Datos básicos ==================
+// ===== datos de planilla =====
 const ROW_CODES = [
-  ["2200","Fuerza Patria"],
-  ["2201","Potencia"],
-  ["2202","Es con Vos es con Nosotros"],
-  ["2203","Fte de Izq. y de Trabajadores - Unidad"],
-  ["2204","Somos Buenos Aires"],
-  ["2205","Nuevos Aires"],
-  ["2206","La Libertad Avanza"],
-  ["2207","Unión y Libertad"],
-  ["2208","Unión Liberal"],
-  ["959","Movimiento Avanzada Socialista"],
-  ["963","Frente Patriota Federal"],
-  ["974","Política Obrera"],
-  ["980","Partido Tiempo de Todos"],
-  ["1003","Construyendo Porvenir"],
-  ["1006","Partido Libertario"],
-  ["1008","Valores Republicanos"],
+  ["2200","Fuerza Patria"],["2201","Potencia"],["2202","Es con Vos es con Nosotros"],
+  ["2203","Fte de Izq. y de Trabajadores - Unidad"],["2204","Somos Buenos Aires"],
+  ["2205","Nuevos Aires"],["2206","La Libertad Avanza"],["2207","Unión y Libertad"],
+  ["2208","Unión Liberal"],["959","Movimiento Avanzada Socialista"],["963","Frente Patriota Federal"],
+  ["974","Política Obrera"],["980","Partido Tiempo de Todos"],["1003","Construyendo Porvenir"],
+  ["1006","Partido Libertario"],["1008","Valores Republicanos"]
 ];
 const FOOT_LABELS = [
   [/total\s+votos\s+agrupaciones|agrupaciones\s+politicas/i, "totDip", "totCon"],
@@ -41,12 +57,12 @@ const FOOT_LABELS = [
   [/identidad\s+impugnada/i, "imp", null]
 ];
 
-// ================== Util numérico ==================
+// ===== helpers num =====
 const onlyDigits = s => (s||"").replace(/[^0-9]/g,"");
 function clean3(s){ s=onlyDigits(s); if(!s) return ""; if(s.length>3) s=s.slice(0,3); return s.padStart(3,"0"); }
 function setFoot(id, val){ if(id) $(id).textContent = val || "—"; }
 
-// ================== OCR helpers ==================
+// ===== OCR =====
 async function ocrDigits(img){
   const { data } = await Tesseract.recognize(img, 'eng', {
     tessedit_char_whitelist: '0123456789',
@@ -59,79 +75,7 @@ async function ocrText(img){
   return data;
 }
 
-// ================== OpenCV: preproceso + grid ==================
-async function run(){
-  if(!cvReady){ toast("Cargando OpenCV… reintentá", false); return; }
-  const file = $("fileActa").files?.[0];
-  if(!file){ toast("Subí la foto del acta.", false); return; }
-
-  $("ocrStatus").textContent="Procesando…";
-  clearTable();
-
-  // Cargar imagen a cv.Mat
-  const dataURL = await fileToDataURL(file);
-  const src = await urlToMat(dataURL);
-
-  // 1) Escalar si es chica
-  const maxSide = Math.max(src.cols, src.rows);
-  if(maxSide < 1800){
-    const scale = 1800/maxSide;
-    const dst = new cv.Mat();
-    cv.resize(src, dst, new cv.Size(0,0), scale, scale, cv.INTER_CUBIC);
-    src.delete(); src=dst;
-  }
-
-  // 2) Gris + CLAHE + binarizado adaptativo
-  let gray = new cv.Mat(); cv.cvtColor(src, gray, cv.COLOR_RGBA2GRAY, 0);
-  let clahe = new cv.createCLAHE(2.0, new cv.Size(8,8)); clahe.apply(gray, gray); clahe.delete();
-  let bin = new cv.Mat(); cv.adaptiveThreshold(gray, bin, 255, cv.ADAPTIVE_THRESH_GAUSSIAN_C, cv.THRESH_BINARY, 25, 15);
-
-  // 3) Deskew (Hough)
-  const angle = estimateSkew(bin);
-  if(Math.abs(angle)>0.6){
-    bin = rotateMat(bin, angle);
-    gray = rotateMat(gray, angle);
-    src  = rotateMat(src, angle);
-  }
-
-  // 4) Detectar líneas verticales y horizontales para columnas y filas
-  const {vXs, hYs} = detectGrid(bin);
-
-  // 5) Columnas: tomamos las dos más a la derecha (números)
-  const sortedV = [...vXs].sort((a,b)=>a-b);
-  const colDipX = sortedV[sortedV.length-2];
-  const colConX = sortedV[sortedV.length-1];
-
-  // 6) Filas por códigos: OCR sobre banda izquierda, anclando por “2200, 2201…”
-  const yRows = await findRowYByCodes(src, gray, hYs);
-
-  // 7) Leer cada celda (dip/con) recortando alrededor de (xcol, yrow)
-  for(const [code,name] of ROW_CODES){
-    const y = yRows.get(code);
-    addRow(name, await readCell(src, colDipX, y), await readCell(src, colConX, y));
-  }
-
-  // 8) Pie de totales: buscar el texto y leer en columnas
-  const wordsData = await ocrText(dataURL);
-  $("confTag").textContent = "Conf: " + (wordsData.confidence ? wordsData.confidence.toFixed(1)+"%" : "—");
-  const words = (wordsData.words||[]).map(w=>({text:(w.text||"").toLowerCase(), bbox:w.bbox}));
-  for(const [rx, idL, idR] of FOOT_LABELS){
-    const hit = words.filter(w=> rx.test(w.text));
-    if(!hit.length) continue;
-    const box = unionBox(hit);
-    const y = (box.y0+box.y1)/2;
-    setFoot(idL, await readCell(src, colDipX, y));
-    if(idR) setFoot(idR, await readCell(src, colConX, y));
-  }
-
-  // 9) Sugerencia de cabecera (Distrito/Circuito/Mesa) leyendo el número derecho
-  suggestHeader(words, src, [colDipX, colConX]);
-
-  $("ocrStatus").textContent="Listo";
-  toast("Lectura completa");
-}
-
-// ----------------- helpers OpenCV -----------------
+// ===== OpenCV helpers =====
 function fileToDataURL(f){ return new Promise(r=>{ const fr=new FileReader(); fr.onload=e=>r(e.target.result); fr.readAsDataURL(f); }); }
 function urlToMat(url){ return new Promise(res=>{ const img=new Image(); img.onload=()=>{ const mat=cv.imread(img); res(mat); }; img.src=url; }); }
 function rotateMat(mat, ang){
@@ -143,94 +87,48 @@ function rotateMat(mat, ang){
 function estimateSkew(bin){
   let edges=new cv.Mat(); cv.Canny(bin, edges, 50, 150);
   let lines=new cv.Mat(); cv.HoughLines(edges, lines, 1, Math.PI/180, 180);
-  let angs=[]; for(let i=0;i<lines.rows;i++){ const rho=lines.data32F[i*2], theta=lines.data32F[i*2+1]; let a=(theta*180/Math.PI); if(a>90) a-=180; if(Math.abs(a)<30) angs.push(a); }
-  edges.delete(); lines.delete();
-  if(!angs.length) return 0;
+  let angs=[]; for(let i=0;i<lines.rows;i++){ const theta=lines.data32F[i*2+1]; let a=(theta*180/Math.PI); if(a>90) a-=180; if(Math.abs(a)<30) angs.push(a); }
+  edges.delete(); lines.delete(); if(!angs.length) return 0;
   return angs.reduce((a,b)=>a+b,0)/angs.length;
-}
-function detectGrid(bin){
-  const inv = new cv.Mat(); cv.bitwise_not(bin, inv);
-  // vertical
-  const vKernel = cv.getStructuringElement(cv.MORPH_RECT, new cv.Size(1, 40));
-  const vLines = new cv.Mat(); cv.morphologyEx(inv, vLines, cv.MORPH_OPEN, vKernel);
-  const vXs = projectPeaks(vLines, 'x');
-  vKernel.delete(); vLines.delete();
-  // horizontal
-  const hKernel = cv.getStructuringElement(cv.MORPH_RECT, new cv.Size(60, 1));
-  const hLines = new cv.Mat(); cv.morphologyEx(inv, hLines, cv.MORPH_OPEN, hKernel);
-  const hYs = projectPeaks(hLines, 'y');
-  hKernel.delete(); hLines.delete(); inv.delete();
-  return { vXs, hYs };
 }
 function projectPeaks(mat, axis){
   const hist = [];
   if(axis==='x'){
-    for(let x=0;x<mat.cols;x++){
-      let sum=0; for(let y=0;y<mat.rows;y++) sum+=mat.ucharPtr(y,x)[0];
-      hist.push(sum);
-    }
+    for(let x=0;x<mat.cols;x++){ let s=0; for(let y=0;y<mat.rows;y++) s+=mat.ucharPtr(y,x)[0]; hist.push(s); }
   }else{
-    for(let y=0;y<mat.rows;y++){
-      let sum=0; for(let x=0;x<mat.cols;x++) sum+=mat.ucharPtr(y,x)[0];
-      hist.push(sum);
-    }
+    for(let y=0;y<mat.rows;y++){ let s=0; for(let x=0;x<mat.cols;x++) s+=mat.ucharPtr(y,x)[0]; hist.push(s); }
   }
-  // picos por umbral relativo
-  const max = Math.max(...hist); const thr = max*0.55;
-  const peaks=[];
-  for(let i=1;i<hist.length-1;i++){
-    if(hist[i]>thr && hist[i]>=hist[i-1] && hist[i]>=hist[i+1]) peaks.push(i);
-  }
-  // dedup distancia mínima
-  const dedup=[]; const minDist=20;
-  for(const p of peaks){ if(dedup.length===0 || p-dedup[dedup.length-1]>minDist) dedup.push(p); }
+  const max = Math.max(...hist), thr=max*0.55, peaks=[];
+  for(let i=1;i<hist.length-1;i++) if(hist[i]>thr && hist[i]>=hist[i-1] && hist[i]>=hist[i+1]) peaks.push(i);
+  const dedup=[], minDist=20; for(const p of peaks){ if(!dedup.length || p-dedup[dedup.length-1]>minDist) dedup.push(p); }
   return dedup;
 }
-function unionBox(arr){
-  return {
-    x0: Math.min(...arr.map(w=>w.bbox.x0)),
-    y0: Math.min(...arr.map(w=>w.bbox.y0)),
-    x1: Math.max(...arr.map(w=>w.bbox.x1)),
-    y1: Math.max(...arr.map(w=>w.bbox.y1)),
-  };
-}
+function detectGrid(bin){
+  const inv = new cv.Mat(); cv.bitwise_not(bin, inv);
+  const vK = cv.getStructuringElement(cv.MORPH_RECT, new cv.Size(1, 40));
+  const vL = new cv.Mat(); cv.morphologyEx(inv, vL, cv.MORPH_OPEN, vK);
+  const vXs = projectPeaks(vL,'x'); vK.delete(); vL.delete();
 
-// localizar Y de cada código (ej. “2200”) leyendo banda izquierda
-async function findRowYByCodes(src, gray, hYs){
-  const map = new Map();
-  // banda izquierda donde están los códigos
-  const bandX = Math.round(src.cols*0.05);
-  const bandW = Math.round(src.cols*0.25);
-  for(let i=0;i<ROW_CODES.length;i++){
-    const code = ROW_CODES[i][0];
-    // barrer todas las franjas entre líneas horizontales y buscar el código
-    let bestY=null, bestHit=0;
-    for(let j=0;j<hYs.length-1;j++){
-      const y0=hYs[j], y1=hYs[j+1];
-      const h=y1-y0; if(h<18) continue;
-      const crop = cropMat(src, bandX, y0, bandW, h);
-      const { data } = await Tesseract.recognize(crop, 'eng', {
-        tessedit_char_whitelist:'0123456789-',
-        tessedit_pageseg_mode:'6'
-      });
-      const t = (data.text||"").replace(/\s/g,'');
-      const score = t.includes(code) ? 1 : (t.includes(code.slice(0,3))?0.5:0);
-      if(score>bestHit){ bestHit=score; bestY=(y0+y1)/2; }
-    }
-    map.set(code, bestY ?? Math.round((i+1)*src.rows/(ROW_CODES.length+4)));
-  }
-  return map;
+  const hK = cv.getStructuringElement(cv.MORPH_RECT, new cv.Size(60, 1));
+  const hL = new cv.Mat(); cv.morphologyEx(inv, hL, cv.MORPH_OPEN, hK);
+  const hYs = projectPeaks(hL,'y'); hK.delete(); hL.delete(); inv.delete();
+
+  return { vXs, hYs };
+}
+function unionBox(arr){
+  return { x0: Math.min(...arr.map(w=>w.bbox.x0)),
+           y0: Math.min(...arr.map(w=>w.bbox.y0)),
+           x1: Math.max(...arr.map(w=>w.bbox.x1)),
+           y1: Math.max(...arr.map(w=>w.bbox.y1)) };
 }
 function cropMat(mat, x, y, w, h){
   x=Math.max(0, Math.min(x, mat.cols-1));
   y=Math.max(0, Math.min(y, mat.rows-1));
   w=Math.min(w, mat.cols-x); h=Math.min(h, mat.rows-y);
   const roi = mat.roi(new cv.Rect(x,y,w,h));
-  // upscale x2 + binarize
   let dst=new cv.Mat(); cv.resize(roi, dst, new cv.Size(w*2,h*2), 0,0, cv.INTER_CUBIC);
   cv.cvtColor(dst, dst, cv.COLOR_RGBA2GRAY, 0);
   cv.adaptiveThreshold(dst, dst, 255, cv.ADAPTIVE_THRESH_MEAN_C, cv.THRESH_BINARY, 25, 10);
-  // export to dataURL
   const canvas=document.createElement('canvas'); canvas.width=dst.cols; canvas.height=dst.rows;
   cv.imshow(canvas, dst);
   const url=canvas.toDataURL('image/png');
@@ -246,32 +144,109 @@ async function readCell(src, xCol, yMid){
   return await ocrDigits(crop);
 }
 
-// cabeceras: tomar número a la derecha de palabra
-async function suggestHeader(words, src, cols){
+// localizar Y por códigos (2200, 2201…)
+async function findRowYByCodes(src, hYs){
+  const map = new Map();
+  const bandX = Math.round(src.cols*0.05);
+  const bandW = Math.round(src.cols*0.25);
+  for(const [code] of ROW_CODES){
+    let bestY=null, best=0;
+    for(let j=0;j<hYs.length-1;j++){
+      const y0=hYs[j], y1=hYs[j+1];
+      const h=y1-y0; if(h<18) continue;
+      const crop = cropMat(src, bandX, y0, bandW, h);
+      const { data } = await Tesseract.recognize(crop, 'eng', {
+        tessedit_char_whitelist:'0123456789-',
+        tessedit_pageseg_mode:'6'
+      });
+      const t = (data.text||"").replace(/\s/g,'');
+      const score = t.includes(code) ? 1 : (t.includes(code.slice(0,3))?0.5:0);
+      if(score>best){ best=score; bestY=(y0+y1)/2; }
+    }
+    map.set(code, bestY ?? null);
+  }
+  return map;
+}
+
+// ===== main =====
+async function run(){
+  $("ocrStatus").textContent = "Cargando OpenCV…";
+  await waitForCV();
+  if (!(window.cv && cv.getBuildInformation)) { $("ocrStatus").textContent="No cargó OpenCV"; return; }
+
+  const file = $("fileActa").files?.[0];
+  if(!file){ toast("Subí la foto del acta.", false); return; }
+
+  clearTable();
+  $("ocrStatus").textContent="Procesando…";
+
+  const dataURL = await fileToDataURL(file);
+  let src = await urlToMat(dataURL);
+
+  // escalar si es chico
+  const maxSide = Math.max(src.cols, src.rows);
+  if(maxSide < 1800){
+    const dst = new cv.Mat();
+    const s = 1800/maxSide;
+    cv.resize(src, dst, new cv.Size(0,0), s, s, cv.INTER_CUBIC);
+    src.delete(); src = dst;
+  }
+
+  // gris + clahe + adaptativo
+  let gray = new cv.Mat(); cv.cvtColor(src, gray, cv.COLOR_RGBA2GRAY, 0);
+  let clahe = new cv.createCLAHE(2.0, new cv.Size(8,8)); clahe.apply(gray, gray); clahe.delete();
+  let bin = new cv.Mat(); cv.adaptiveThreshold(gray, bin, 255, cv.ADAPTIVE_THRESH_GAUSSIAN_C, cv.THRESH_BINARY, 25, 15);
+
+  // deskew
+  const angle = estimateSkew(bin);
+  if(Math.abs(angle)>0.6){
+    bin = rotateMat(bin, angle);
+    gray = rotateMat(gray, angle);
+    src  = rotateMat(src, angle);
+  }
+
+  // grid
+  const {vXs, hYs} = detectGrid(bin);
+  if(vXs.length < 2 || hYs.length < 5){ $("ocrStatus").textContent="No se detectó grilla"; toast("Foto muy borrosa / torcida", false); return; }
+  const sortedV = [...vXs].sort((a,b)=>a-b);
+  const colDipX = sortedV[sortedV.length-2];
+  const colConX = sortedV[sortedV.length-1];
+
+  // filas por códigos
+  const yRows = await findRowYByCodes(src, hYs);
+
+  // leer filas
+  for(const [code,name] of ROW_CODES){
+    const y = yRows.get(code);
+    if(!y){ addRow(name,"",""); continue; }
+    const d = await readCell(src, colDipX, y);
+    const c = await readCell(src, colConX, y);
+    addRow(name, d, c);
+  }
+
+  // pie (totales)
+  const wordsData = await ocrText(dataURL);
+  $("confTag").textContent = "Conf: " + (wordsData.confidence ? wordsData.confidence.toFixed(1)+"%" : "—");
+  const words = (wordsData.words||[]).map(w=>({text:(w.text||"").toLowerCase(), bbox:w.bbox}));
+  for(const [rx, idL, idR] of FOOT_LABELS){
+    const hits = words.filter(w=> rx.test(w.text));
+    if(!hits.length) continue;
+    const b = unionBox(hits); const y=(b.y0+b.y1)/2;
+    setFoot(idL, await readCell(src, colDipX, y));
+    if(idR) setFoot(idR, await readCell(src, colConX, y));
+  }
+
+  // cabeceras
   const getRightNum = async (rx)=>{
     const hits = words.filter(w=> rx.test(w.text));
     if(!hits.length) return "";
     const b = unionBox(hits); const y=(b.y0+b.y1)/2;
-    return await readCell(src, Math.min(...cols), y);
+    return await readCell(src, colDipX, y); // número a la derecha
   };
   $("inpDistrito").value ||= await getRightNum(/distrito/);
   $("inpCircuito").value ||= await getRightNum(/circuito/);
   $("inpMesa").value     ||= await getRightNum(/mesa/);
-}
 
-// ================== Tabla ==================
-function clearTable(){
-  tbody().innerHTML="";
-  ["totDip","totCon","blDip","blCon","imp","sob3Dip","sob3Con","sumDip","sumCon"].forEach(id=>$(id).textContent="—");
-  $("sumTag").textContent="Suma total: — / —";
-}
-function addRow(name, d, c){
-  const tr=document.createElement("tr");
-  const tdN=document.createElement("td");
-  const tdD=document.createElement("td");
-  const tdC=document.createElement("td");
-  tdN.textContent=name;
-  tdD.textContent=d||"";
-  tdC.textContent=c||"";
-  tr.append(tdN,tdD,tdC); tbody().appendChild(tr);
+  $("ocrStatus").textContent="Listo";
+  toast("Lectura completa");
 }
