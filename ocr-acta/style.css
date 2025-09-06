@@ -19,8 +19,6 @@ table{width:100%;border-collapse:collapse}
 th,td{padding:8px;border-bottom:1px solid #f0f0f6}
 th{background:#fafafe;text-align:left}
 .hint{margin-top:10px;font-size:.9rem;color:#666}
-
-/* Modal + toast */
 .modal{position:fixed;inset:0;background:rgba(0,0,0,.45);display:none;align-items:center;justify-content:center;z-index:9999;padding:16px}
 .modal-card{max-width:520px}
 .toast{position:fixed;left:50%;bottom:24px;transform:translateX(-50%);background:#fff;padding:12px 16px;border-radius:12px;border:1px solid #ddd;box-shadow:0 12px 40px rgba(0,0,0,.15);display:none;z-index:10000}

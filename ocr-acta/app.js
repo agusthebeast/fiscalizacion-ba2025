@@ -1,17 +1,23 @@
-// ---------- util UI ----------
+// ====== BOOT ======
+document.addEventListener("DOMContentLoaded", () => {
+  bindUI();
+  initFirebase();
+});
+
+// ====== UI HELPERS ======
 const $ = (id)=>document.getElementById(id);
 function showToast(msg, ok=true){
   const t = $("toast");
   t.textContent = msg;
   t.className = "toast " + (ok ? "ok":"err");
   t.style.display = "block";
-  setTimeout(()=> t.style.display="none", 2500);
+  setTimeout(()=> t.style.display="none", 2600);
 }
 function openModal(){ $("modalConf").style.display="flex"; }
 function closeModal(){ $("modalConf").style.display="none"; }
 
-// ---------- partidos ----------
-const partidos = [
+// ====== PARTIDOS ======
+const PARTIDOS = [
   "Fuerza Patria",
   "Potencia",
   "Es con Vos es con Nosotros",
@@ -30,11 +36,10 @@ const partidos = [
   "Valores Republicanos"
 ];
 
-const tbody = document.querySelector("#tablaResultados tbody");
-
-// ---------- Helpers tabla ----------
+// ====== TABLA ======
+const tbody = ()=> document.querySelector("#tablaResultados tbody");
 function limpiarTabla(){
-  tbody.innerHTML = "";
+  tbody().innerHTML = "";
   ["totDip","totCon","blDip","blCon","imp","sob3Dip","sob3Con","sumDip","sumCon"].forEach(id=>$(id).textContent="—");
   $("sumTag").textContent = "Suma total: — / —";
 }
@@ -48,67 +53,37 @@ function ponerFila(nombre, d, c, editable=false){
   tdC.textContent = c ?? "";
   if(editable){ tdD.contentEditable="true"; tdC.contentEditable="true"; }
   tr.append(tdN, tdD, tdC);
-  tbody.appendChild(tr);
+  tbody().appendChild(tr);
 }
 
-// ---------- Preproceso de imagen (mejora OCR) ----------
-function preprocessImage(file){
-  return new Promise((resolve,reject)=>{
-    const img = new Image();
-    img.onload = ()=>{
-      const scale = 1.8; // subir resolución
-      const w = Math.round(img.width*scale);
-      const h = Math.round(img.height*scale);
-      const canvas = document.createElement("canvas");
-      canvas.width = w; canvas.height = h;
-      const ctx = canvas.getContext("2d");
-      ctx.drawImage(img, 0, 0, w, h);
-      // Gris + binarizado
-      const imgData = ctx.getImageData(0,0,w,h);
-      const d = imgData.data;
-      for(let i=0;i<d.length;i+=4){
-        const g = 0.299*d[i] + 0.587*d[i+1] + 0.114*d[i+2];
-        const bw = g > 185 ? 255 : 0; // umbral suave
-        d[i]=d[i+1]=d[i+2]=bw;
-      }
-      ctx.putImageData(imgData,0,0);
-      resolve(canvas.toDataURL("image/png"));
-    };
-    img.onerror = reject;
-    const fr = new FileReader();
-    fr.onload = e => { img.src = e.target.result; };
-    fr.readAsDataURL(file);
-  });
-}
-
-// ---------- OCR con worker (PSM=6, preserva espacios) ----------
-// ---------- OCR estable (sin worker) ----------
+// ====== OCR ======
 async function leerActa(file){
   $("ocrStatus").textContent = "Procesando OCR…";
   try{
+    // OCR estable
     const { data } = await Tesseract.recognize(file, 'spa', {
-      // PSM 6 aproximado (en recognize va mejor sin parámetros raros)
-      // Dejamos logger para ver progreso si hace falta
       logger: m => { /* console.log(m); */ }
     });
     $("ocrStatus").textContent = "Listo";
     $("confTag").textContent = "Conf: " + (data.confidence ? data.confidence.toFixed(1) + "%" : "—");
-    // Usa el PARSER POR RENGLONES con columnas que ya tenés
-    parseByLines(data);
-    return data;
+
+    // Si words no viene, fallback al texto
+    if (data.words && data.words.length) {
+      parseByLines(data);
+    } else {
+      parseByText(data.text || "");
+    }
   }catch(e){
     console.error(e);
     $("ocrStatus").textContent = "Error OCR";
     showToast("Error corriendo OCR", false);
-    throw e;
   }
 }
 
+// ====== PARSER 1: LÍNEAS + COLUMNAS ======
+function normalizeSpace(s){ return (s||"").replace(/\s+/g," ").trim(); }
 
-// ---------- Parser por renglones (nuevo robusto con columnas) ----------
-function normalizeSpace(s){ return s.replace(/\s+/g," ").trim(); }
-
-// Corrige confusiones típicas de OCR y deja sólo dígitos (1–3 cifras)
+// corrige confusiones frecuentes y limita a 3 dígitos
 function fixDigitChars(t){
   if(!t) return "";
   let s = t
@@ -117,22 +92,13 @@ function fixDigitChars(t){
     .replace(/[Bb]/g, "8")
     .replace(/[lI]/g, "1")
     .replace(/[Z]/g, "2")
-    .replace(/[A]/g, "4"); // ocasional
+    .replace(/[A]/g, "4");
   s = s.replace(/[^0-9]/g, "");
-  // limita a 3 dígitos por casillero
   if(s.length > 3) s = s.slice(-3);
   return s;
 }
-function isNumLike(t){
-  const s = fixDigitChars(t);
-  return s.length >= 1 && s.length <= 3;
-}
-function asNumToken(t){
-  const s = fixDigitChars(t);
-  return /^\d{1,3}$/.test(s) ? s : "";
-}
+function asNumToken(t){ const s = fixDigitChars(t); return /^\d{1,3}$/.test(s) ? s : ""; }
 
-// Agrupa palabras por línea usando y medio (bin ~12px), conserva bbox
 function buildLines(words){
   const lines = new Map();
   for(const w of words){
@@ -140,20 +106,17 @@ function buildLines(words){
     const lineId = Math.round(yMid/12);
     if(!lines.has(lineId)) lines.set(lineId, { y: yMid, words: [] });
     lines.get(lineId).words.push({
-      raw: w.text,
-      text: w.text,
-      x0: w.bbox.x0, x1: w.bbox.x1, y0: w.bbox.y0, y1: w.bbox.y1
+      raw: w.text, x0: w.bbox.x0, x1: w.bbox.x1, y0: w.bbox.y0, y1: w.bbox.y1
     });
   }
   const arr = Array.from(lines.entries()).map(([id,obj])=>{
     obj.words.sort((a,b)=>a.x0-b.x0);
-    obj.text = normalizeSpace(obj.words.map(w=>w.text).join(" "));
+    obj.text = normalizeSpace(obj.words.map(w=>w.raw).join(" "));
     obj.id = id;
     return obj;
   }).sort((a,b)=>a.y-b.y);
   return arr;
 }
-
 function findLineIdx(lines, needle){
   const n = needle.toLowerCase();
   for(let i=0;i<lines.length;i++){
@@ -161,156 +124,110 @@ function findLineIdx(lines, needle){
   }
   return -1;
 }
-
 function numberTokensInLine(line){
-  // devuelve [{n, x}] sólo para tokens numéricos o num-like corregidos
   return line.words
     .map(w=>({ n: asNumToken(w.raw), x: w.x0 }))
     .filter(o=>o.n);
 }
-
-// Detecta las 2 columnas numéricas por clustering 1D (x). Devuelve {c1, c2} (x-centroids ordenados)
 function detectColumns(lines){
   const xs = [];
   for(const ln of lines){
-    for(const tok of numberTokensInLine(ln)){
-      xs.push(tok.x);
-    }
+    for(const tok of numberTokensInLine(ln)) xs.push(tok.x);
   }
-  if(xs.length < 2){
-    return null; // no se puede clusterizar; se usará fallback
-  }
+  if(xs.length < 2) return null;
   xs.sort((a,b)=>a-b);
-  // inicialización: percentil 25 y 75
-  const p = (arr, q)=>arr[Math.max(0, Math.min(arr.length-1, Math.floor(q*(arr.length-1))))];
+  const p = (arr,q)=>arr[Math.max(0, Math.min(arr.length-1, Math.floor(q*(arr.length-1))))];
   let c1 = p(xs, 0.25), c2 = p(xs, 0.75);
-  // 5 iteraciones de k-means 1D
   for(let it=0; it<5; it++){
-    const g1 = [], g2 = [];
-    for(const x of xs){
-      (Math.abs(x-c1) <= Math.abs(x-c2) ? g1 : g2).push(x);
-    }
+    const g1=[], g2=[];
+    for(const x of xs){ (Math.abs(x-c1)<=Math.abs(x-c2)?g1:g2).push(x); }
     if(g1.length) c1 = g1.reduce((a,b)=>a+b,0)/g1.length;
     if(g2.length) c2 = g2.reduce((a,b)=>a+b,0)/g2.length;
   }
-  // ordena izq→der
-  if(c1 > c2){ const t=c1; c1=c2; c2=t; }
+  if(c1>c2){ const t=c1; c1=c2; c2=t; }
   return { c1, c2 };
 }
-
-// Toma dos números para una línea índice i usando columnas detectadas.
-// Busca en línea i, luego i+1 y i-1, asigna por cercanía a centroides.
 function pickTwoNumbersByColumns(lines, idx, cols){
-  const bag = [];
-  const pushNums = (ln)=>{
-    if(!ln) return;
-    for(const tok of numberTokensInLine(ln)){
-      bag.push({ n: tok.n, x: tok.x });
-    }
-  };
-  pushNums(lines[idx]);
-  pushNums(lines[idx+1]);
-  pushNums(lines[idx-1]);
-
-  if(!bag.length){
-    return ["",""]; // sin números cerca
-  }
-  if(!cols){
-    // fallback: dos más a la derecha en X
-    bag.sort((a,b)=>a.x-b.x);
-    return [bag[bag.length-2]?.n || "", bag[bag.length-1]?.n || ""];
-  }
-
-  // asignación por cercanía a centroides
-  let bestL = null, bestR = null, dL = 1e9, dR = 1e9;
+  const bag=[];
+  const pushNums = (ln)=>{ if(!ln) return; for(const t of numberTokensInLine(ln)) bag.push({n:t.n,x:t.x}); };
+  pushNums(lines[idx]); pushNums(lines[idx+1]); pushNums(lines[idx-1]);
+  if(!bag.length) return ["",""];
+  if(!cols){ bag.sort((a,b)=>a.x-b.x); return [bag[bag.length-2]?.n || "", bag[bag.length-1]?.n || ""]; }
+  let bestL=null, bestR=null, dL=1e9, dR=1e9;
   for(const t of bag){
     const d1 = Math.abs(t.x - cols.c1);
     const d2 = Math.abs(t.x - cols.c2);
-    if(d1 <= d2){
-      if(d1 < dL) { dL = d1; bestL = t.n; }
-    } else {
-      if(d2 < dR) { dR = d2; bestR = t.n; }
-    }
+    if(d1<=d2){ if(d1<dL){dL=d1; bestL=t.n;} }
+    else { if(d2<dR){dR=d2; bestR=t.n;} }
   }
-  return [bestL || "", bestR || ""];
+  return [bestL||"", bestR||""];
 }
 
 function parseByLines(ocrData){
   limpiarTabla();
-
   const lines = buildLines(ocrData.words || []);
-  const cols = detectColumns(lines); // {c1,c2} o null
+  const cols  = detectColumns(lines);
 
-  // Cabeceras (mejor intento: toma el primer número tras la palabra clave)
+  // Cabeceras
   const idxDist = findLineIdx(lines, "Distrito");
   const idxCirc = findLineIdx(lines, "Circuito");
   const idxMesa = findLineIdx(lines, "Mesa");
+  if(idxDist>=0){ const n=numberTokensInLine(lines[idxDist]).map(x=>x.n)[0]; $("inpDistrito").value ||= (n||""); }
+  if(idxCirc>=0){ const n=numberTokensInLine(lines[idxCirc]).map(x=>x.n)[0]; $("inpCircuito").value ||= (n||""); }
+  if(idxMesa>=0){ const n=numberTokensInLine(lines[idxMesa]).map(x=>x.n)[0]; $("inpMesa").value ||= (n||""); }
 
-  if(idxDist>=0){
-    const nums = numberTokensInLine(lines[idxDist]).map(x=>x.n);
-    $("inpDistrito").value = $("inpDistrito").value || (nums[0] || "");
-  }
-  if(idxCirc>=0){
-    const nums = numberTokensInLine(lines[idxCirc]).map(x=>x.n);
-    $("inpCircuito").value = $("inpCircuito").value || (nums[0] || "");
-  }
-  if(idxMesa>=0){
-    const nums = numberTokensInLine(lines[idxMesa]).map(x=>x.n);
-    $("inpMesa").value = $("inpMesa").value || (nums[0] || "");
-  }
-
-  // Partidos → dos números por columnas
-  for(const p of partidos){
+  // Partidos
+  for(const p of PARTIDOS){
     const i = findLineIdx(lines, p);
     const [dip, con] = pickTwoNumbersByColumns(lines, i, cols);
     ponerFila(p, dip, con);
   }
 
-  // Totales y otros (siempre usando columnas detectadas)
+  // Totales
   let iTot = findLineIdx(lines, "TOTAL VOTOS AGRUPACIONES");
   if(iTot<0) iTot = findLineIdx(lines, "AGRUPACIONES POLITICAS");
-  if(iTot>=0){
-    const [d,c] = pickTwoNumbersByColumns(lines, iTot, cols);
-    $("totDip").textContent = d || "—";
-    $("totCon").textContent = c || "—";
-  }
+  if(iTot>=0){ const [d,c]=pickTwoNumbersByColumns(lines, iTot, cols); $("totDip").textContent=d||"—"; $("totCon").textContent=c||"—"; }
 
   const iBl = findLineIdx(lines, "VOTOS EN BLANCO");
-  if(iBl>=0){
-    const [d,c] = pickTwoNumbersByColumns(lines, iBl, cols);
-    $("blDip").textContent = d || "—";
-    $("blCon").textContent = c || "—";
-  }
+  if(iBl>=0){ const [d,c]=pickTwoNumbersByColumns(lines, iBl, cols); $("blDip").textContent=d||"—"; $("blCon").textContent=c||"—"; }
 
   const iImp = findLineIdx(lines, "IDENTIDAD IMPUGNADA");
-  if(iImp>=0){
-    const [d] = pickTwoNumbersByColumns(lines, iImp, cols);
-    $("imp").textContent = d || "0";
-  } else {
-    $("imp").textContent = "0";
-  }
+  if(iImp>=0){ const [d]=pickTwoNumbersByColumns(lines, iImp, cols); $("imp").textContent=d||"0"; } else { $("imp").textContent="0"; }
 
   let iS3 = findLineIdx(lines, "SOBRE N");
   if(iS3<0) iS3 = findLineIdx(lines, "SOBRE 3");
-  if(iS3>=0){
-    const [d,c] = pickTwoNumbersByColumns(lines, iS3, cols);
-    $("sob3Dip").textContent = d || "—";
-    $("sob3Con").textContent = c || "—";
-  }
+  if(iS3>=0){ const [d,c]=pickTwoNumbersByColumns(lines, iS3, cols); $("sob3Dip").textContent=d||"—"; $("sob3Con").textContent=c||"—"; }
 
   const iSum = findLineIdx(lines, "SUMA TOTAL DE VOTOS");
   if(iSum>=0){
-    const [d,c] = pickTwoNumbersByColumns(lines, iSum, cols);
-    $("sumDip").textContent = d || "—";
-    $("sumCon").textContent = c || "—";
-    if(d && c) $("sumTag").textContent = `Suma total: ${d} / ${c}`;
+    const [d,c]=pickTwoNumbersByColumns(lines, iSum, cols);
+    $("sumDip").textContent=d||"—"; $("sumCon").textContent=c||"—";
+    if(d&&c) $("sumTag").textContent = `Suma total: ${d} / ${c}`;
   }
 }
 
+// ====== PARSER 2: Fallback por texto (simple) ======
+function parseByText(txt){
+  limpiarTabla();
+  const text = (txt||"").replace(/\r/g,"");
+  // filas por nombre + dos números en la línea o siguiente
+  for(const p of PARTIDOS){
+    const re = new RegExp(p.replace(/[.*+?^${}()|[\]\\]/g,"\\$&")+"[\\s\\S]{0,50}?(\\d{1,3}).*?(\\d{1,3})","i");
+    const m = text.match(re);
+    ponerFila(p, m?m[1]:"", m?m[2]:"");
+  }
+  const g = (re)=> (text.match(re)||[])[1] || "";
+  $("totDip").textContent = g(/TOTAL VOTOS AGRUPACIONES.*?(\d{1,3})/is);
+  $("totCon").textContent = g(/TOTAL VOTOS AGRUPACIONES[\s\S]*?\n.*?(\d{1,3})/im) || g(/AGRUPACIONES POLITICAS.*?\n.*?(\d{1,3})/is);
+  $("blDip").textContent  = g(/VOTOS EN BLANCO.*?(\d{1,3})/is);
+  $("blCon").textContent  = (text.match(/VOTOS EN BLANCO[\s\S]*?\n.*?(\d{1,3})/i)||[])[1] || "";
+  const sum = text.match(/SUMA TOTAL DE VOTOS.*?(\d{1,3})[\s\S]*?(\d{1,3})/i);
+  if(sum){ $("sumDip").textContent = sum[1]; $("sumCon").textContent = sum[2]; $("sumTag").textContent = `Suma total: ${sum[1]} / ${sum[2]}`; }
+}
 
-// ---------- Construir datos ----------
+// ====== BUILD PAYLOAD / SAVE ======
 function construirPayload(){
-  const filas = [...tbody.querySelectorAll("tr")].map(tr=>{
+  const filas = [...tbody().querySelectorAll("tr")].map(tr=>{
     const tds = tr.querySelectorAll("td");
     return { partido: tds[0].textContent.trim(), diputados: tds[1].textContent.trim(), concejales: tds[2].textContent.trim() };
   });
@@ -331,9 +248,9 @@ function construirPayload(){
   };
 }
 
-// ---------- Cloudinary ----------
-const CLOUD_NAME = "dudrnu2mq";
-const UPLOAD_PRESET = "escrutinio";
+// ====== CLOUDINARY ======
+const CLOUD_NAME = "dudrnu2mq";     // tu config
+const UPLOAD_PRESET = "escrutinio"; // unsigned
 async function subirCloudinary(file){
   const url = `https://api.cloudinary.com/v1_1/${CLOUD_NAME}/image/upload`;
   const form = new FormData();
@@ -346,11 +263,55 @@ async function subirCloudinary(file){
   return j.secure_url;
 }
 
-// ---------- Firestore ----------
+// ====== FIREBASE ======
+function initFirebase(){
+  const firebaseConfig = {
+    apiKey: "AIzaSyBBzTZfg0OfP0ESC6Gm3YixAmumVtGqjq0",
+    authDomain: "fiscalizacionba2025.firebaseapp.com",
+    projectId: "fiscalizacionba2025",
+    storageBucket: "fiscalizacionba2025.firebasestorage.app",
+    messagingSenderId: "565741056892",
+    appId: "1:565741056892:web:28c7c807e410f8577e6af9"
+  };
+  firebase.initializeApp(firebaseConfig);
+}
+
 async function guardarFirestore(payload){
-  if(!firebase.auth().currentUser){
-    await firebase.auth().signInAnonymously();
-  }
-  const col = firebase.firestore().collection("actas");
-  await col.add(payload);
+  const auth = firebase.auth();
+  const db   = firebase.firestore();
+  if(!auth.currentUser) await auth.signInAnonymously();
+  await db.collection("actas").add(payload);
+}
+
+// ====== EVENTOS ======
+function bindUI(){
+  $("btnLeer").addEventListener("click", async ()=>{
+    const f = $("fileActa").files?.[0];
+    if(!f){ showToast("Subí una foto del acta.", false); return; }
+    await leerActa(f);
+  });
+
+  $("btnEditar").addEventListener("click", ()=>{
+    [...tbody().querySelectorAll("td:nth-child(2), td:nth-child(3)")].forEach(td=>td.contentEditable="true");
+    showToast("Edición habilitada");
+  });
+
+  $("btnConfirmar").addEventListener("click", openModal);
+  $("cancelConf").addEventListener("click", closeModal);
+
+  $("okConf").addEventListener("click", async ()=>{
+    closeModal();
+    try{
+      const payload = construirPayload();
+      const imgFile = $("fileActa").files?.[0];
+      if(!imgFile){ showToast("Falta la imagen", false); return; }
+      const imgUrl = await subirCloudinary(imgFile);
+      payload.foto_url = imgUrl;
+      await guardarFirestore(payload);
+      showToast("Guardado OK");
+    }catch(e){
+      console.error(e);
+      showToast("Fallo al guardar", false);
+    }
+  });
 }

@@ -9,12 +9,15 @@
   <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Montserrat:wght@400;600&display=swap">
 
   <!-- Tesseract (OCR) -->
-  <script src="https://cdn.jsdelivr.net/npm/tesseract.js@5.0.5/dist/tesseract.min.js"></script>
+  <script defer src="https://cdn.jsdelivr.net/npm/tesseract.js@5.0.5/dist/tesseract.min.js"></script>
 
   <!-- Firebase (Auth + Firestore) -->
-  <script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-app-compat.js"></script>
-  <script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-auth-compat.js"></script>
-  <script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore-compat.js"></script>
+  <script defer src="https://www.gstatic.com/firebasejs/10.12.2/firebase-app-compat.js"></script>
+  <script defer src="https://www.gstatic.com/firebasejs/10.12.2/firebase-auth-compat.js"></script>
+  <script defer src="https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore-compat.js"></script>
+
+  <!-- App -->
+  <script defer src="app.js?v=4"></script>
 </head>
 <body>
   <main class="wrap">
@@ -23,13 +26,13 @@
     <section class="card">
       <div class="grid">
         <label>Distrito
-          <input id="inpDistrito" placeholder="p.ej. 109 - San Vicente">
+          <input id="inpDistrito" placeholder="109 - San Vicente">
         </label>
         <label>Circuito
-          <input id="inpCircuito" placeholder="p.ej. 925">
+          <input id="inpCircuito" placeholder="925">
         </label>
         <label>Mesa
-          <input id="inpMesa" placeholder="p.ej. 89">
+          <input id="inpMesa" placeholder="89">
         </label>
       </div>
 
@@ -65,10 +68,9 @@
         <button class="btn" id="btnEditar">Editar a mano</button>
         <button class="btn primary" id="btnConfirmar">Confirmar y guardar</button>
       </div>
-      <!--<div class="hint">No usamos <code>alert()</code>. Se muestran cuadros visuales.</div>-->
+      <div class="hint">Sin <code>alert()</code>. Se usan cuadros visuales.</div>
     </section>
 
-    <!-- Mensaje visual -->
     <div class="toast" id="toast"></div>
   </main>
 
@@ -83,24 +85,5 @@
       </div>
     </div>
   </div>
-
-  <script>
-  // === Firebase ===
-  // Proyecto fiscalización (provisto por vos)
-  const firebaseConfig = {
-    apiKey: "AIzaSyBBzTZfg0OfP0ESC6Gm3YixAmumVtGqjq0",
-    authDomain: "fiscalizacionba2025.firebaseapp.com",
-    projectId: "fiscalizacionba2025",
-    storageBucket: "fiscalizacionba2025.firebasestorage.app",
-    messagingSenderId: "565741056892",
-    appId: "1:565741056892:web:28c7c807e410f8577e6af9"
-  };
-  firebase.initializeApp(firebaseConfig);
-  const auth = firebase.auth();
-  const db   = firebase.firestore();
-  </script>
-
-  <script src="app.js?v=3"></script>
-
 </body>
 </html>
