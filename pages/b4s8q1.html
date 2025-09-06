@@ -87,16 +87,21 @@
       if (!user) return;
       dniUsuario = user.email.split("@")[0];
 
-      db.collection("mesas").where("fiscal_dni", "==", dniUsuario).orderBy("mesa").get()
-        .then(snapshot => {
-          const select = document.getElementById("mesa");
-          select.innerHTML = `<option value="">-- Elegir mesa --</option>`;
-          snapshot.forEach(doc => {
-            const data = doc.data();
-            escuela = data.escuela;
-            select.innerHTML += `<option value="${data.mesa}">Mesa ${data.mesa}</option>`;
-          });
-        });
+      const dniLibreAcceso = ["51704651", "26574755", "43251851", "95510910"];
+
+const consulta = dniLibreAcceso.includes(dniUsuario)
+  ? db.collection("mesas").orderBy("mesa")
+  : db.collection("mesas").where("fiscal_dni", "==", dniUsuario).orderBy("mesa");
+
+consulta.get().then(snapshot => {
+  const select = document.getElementById("mesa");
+  select.innerHTML = `<option value="">-- Elegir mesa --</option>`;
+  snapshot.forEach(doc => {
+    const data = doc.data();
+    escuela = data.escuela;
+    select.innerHTML += `<option value="${data.mesa}">Mesa ${data.mesa}</option>`;
+  });
+});
 
       const tabla = document.getElementById("tabla-votos");
       agrupaciones.forEach(a => {
