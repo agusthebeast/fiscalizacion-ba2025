@@ -1,0 +1,109 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+  <title>Resultados públicos</title>
+  <link rel="stylesheet" href="../css/jIh3aOq.css" />
+  <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+</head>
+<body>
+  <div class="login-container">
+    <h2>Resultados Diputados</h2>
+    <canvas id="graficoDiputados"></canvas>
+
+    <h2>Resultados Concejales</h2>
+    <canvas id="graficoConcejales"></canvas>
+
+    <h2>Actas Cargadas</h2>
+    <div id="plantillas-container"></div>
+  </div>
+
+  <script src="https://www.gstatic.com/firebasejs/10.7.2/firebase-app-compat.js"></script>
+  <script src="https://www.gstatic.com/firebasejs/10.7.2/firebase-firestore-compat.js"></script>
+
+  <script>
+    const firebaseConfig = {
+      apiKey: "AIzaSyBBzTZfg0OfP0ESC6Gm3YixAmumVtGqjq0",
+      authDomain: "fiscalizacionba2025.firebaseapp.com",
+      projectId: "fiscalizacionba2025",
+    };
+
+    firebase.initializeApp(firebaseConfig);
+    const db = firebase.firestore();
+
+    const votosDip = {};
+    const votosCon = {};
+
+    db.collection("escrutinios").get().then(snapshot => {
+      const plantillasContainer = document.getElementById("plantillas-container");
+
+      snapshot.forEach(doc => {
+        const data = doc.data();
+        const votos = data.votos;
+
+        for (const partido in votos) {
+          const dip = votos[partido].diputados || 0;
+          const con = votos[partido].concejales || 0;
+
+          votosDip[partido] = (votosDip[partido] || 0) + dip;
+          votosCon[partido] = (votosCon[partido] || 0) + con;
+        }
+
+        // Mostrar imagen del acta
+        const div = document.createElement("div");
+        div.innerHTML = `
+          <h3>${data.escuela} – Mesa ${data.mesa}</h3>
+          <img src="${data.urlFoto}" style="max-width: 100%; margin-bottom: 20px; border-radius:8px;" />
+        `;
+        plantillasContainer.appendChild(div);
+      });
+
+      renderChart("graficoDiputados", votosDip);
+      renderChart("graficoConcejales", votosCon);
+    });
+
+    function renderChart(canvasId, data) {
+      const labels = Object.keys(data);
+      const values = Object.values(data);
+
+      const partidoColores = {
+        "LA LIBERTAD AVANZA": "#4c2882",
+        "FUERZA PATRIA": "#87CEEB",
+        "POTENCIA": "#f4a261",
+        "ES CON VOS": "#e76f51",
+        "FTE DE IZQ": "#e63946",
+        "SOMOS BUENOS AIRES": "#2a9d8f",
+        "NUEVOS AIRES": "#264653",
+        "UNION Y LIBERTAD": "#ffb703",
+        "UNION LIBERAL": "#219ebc",
+        "MOVIMIENTO AVANZADA": "#6a4c93",
+        "FRENTE PATRIOTA": "#b5179e",
+        "POLITICA OBRERA": "#fb8500",
+        "TIEMPO DE TODOS": "#8ecae6",
+        "CONSTRUYENDO PORVENIR": "#adb5bd",
+        "PARTIDO LIBERTARIO": "#0a9396",
+        "VALORES REPUBLICANOS": "#ff006e"
+      };
+
+      const colors = labels.map(label => {
+        for (const key in partidoColores) {
+          if (label.includes(key)) return partidoColores[key];
+        }
+        return "#999";
+      });
+
+      new Chart(document.getElementById(canvasId), {
+        type: "pie",
+        data: {
+          labels,
+          datasets: [{
+            data: values,
+            backgroundColor: colors
+          }]
+        }
+      });
+    }
+  </script>
+</body>
+</html>

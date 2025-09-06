@@ -6,7 +6,6 @@
   <title>Cargar Escrutinio</title>
   <link rel="stylesheet" href="../css/jIh3aOq.css" />
   <link rel="icon" type="image/x-icon" href="../favicon.ico" />
-
 </head>
 <body>
   <div class="login-container">
@@ -44,7 +43,7 @@
     <label>Foto del acta:</label>
     <input type="file" id="foto" accept="image/*" />
 
-    <button onclick="guardarEscrutinio()">Guardar</button>
+    <button id="btn-guardar" onclick="guardarEscrutinio()">Guardar</button>
     <div id="estado"></div>
   </div>
 
@@ -111,10 +110,38 @@
     });
 
     async function guardarEscrutinio() {
+      const btn = document.getElementById("btn-guardar");
+      btn.disabled = true;
+      btn.innerText = "Guardando...";
+
       const mesa = document.getElementById("mesa").value;
-      if (!mesa) return alert("Elegí una mesa");
+      if (!mesa) {
+        alert("Elegí una mesa");
+        btn.disabled = false;
+        btn.innerText = "Guardar";
+        return;
+      }
+
       const archivo = document.getElementById("foto").files[0];
-      if (!archivo) return alert("Subí la foto del acta");
+      if (!archivo) {
+        alert("Subí la foto del acta");
+        btn.disabled = false;
+        btn.innerText = "Guardar";
+        return;
+      }
+
+      // Verificar si la mesa ya fue cargada
+      const docRef = db.collection("escrutinios").doc(mesa);
+      const existente = await docRef.get();
+      if (existente.exists) {
+        const confirmar = confirm("⚠️ Esta mesa ya fue cargada. ¿Querés reemplazar los datos?");
+        if (!confirmar) {
+          document.getElementById("estado").innerText = "Cancelado por el usuario.";
+          btn.disabled = false;
+          btn.innerText = "Guardar";
+          return;
+        }
+      }
 
       const votos = {};
       agrupaciones.forEach(a => {
@@ -136,11 +163,16 @@
         timestamp: Date.now()
       };
 
+      // Cloudinary con timestamp
       document.getElementById("estado").innerText = "Subiendo foto...";
+      const fecha = new Date().toISOString().replace(/[:.]/g, "-");
+      const nombreImg = `${mesa}-${fecha}`;
+
       const formData = new FormData();
       formData.append("file", archivo);
       formData.append("upload_preset", "escrutinio");
       formData.append("folder", `escrutinios/${dniUsuario}`);
+      formData.append("public_id", `escrutinios/${dniUsuario}/${nombreImg}`);
 
       const res = await fetch("https://api.cloudinary.com/v1_1/dudrnu2mq/image/upload", {
         method: "POST",
@@ -149,9 +181,17 @@
       const data = await res.json();
       resumen.urlFoto = data.secure_url;
 
+      // Guardar historial de fotos anteriores si las hay
+      resumen.fotos_anteriores = existente.exists && existente.data().urlFoto
+        ? [...(existente.data().fotos_anteriores || []), existente.data().urlFoto]
+        : [];
+
       document.getElementById("estado").innerText = "Guardando en base de datos...";
-      await db.collection("escrutinios").doc(mesa).set(resumen);
+      await docRef.set(resumen);
+
       document.getElementById("estado").innerText = "✅ Guardado correctamente";
+      btn.disabled = false;
+      btn.innerText = "Guardar";
     }
   </script>
 </body>
