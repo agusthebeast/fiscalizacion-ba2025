@@ -8,12 +8,21 @@
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Montserrat:wght@400;600&display=swap">
 
-  <!-- OpenCV.js (CDN estable) -->
-  <script async src="https://cdn.jsdelivr.net/npm/@techstark/opencv-js@4.9.0-1/opencv.js"></script>
-  <!-- Tesseract -->
-  <script defer src="https://cdn.jsdelivr.net/npm/tesseract.js@5.0.5/dist/tesseract.min.js"></script>
-  <!-- App -->
-  <script defer src="app.js?v=110"></script>
+<!-- 1) Config para que busque el .wasm en el CDN -->
+<script>
+  window.Module = {
+    locateFile: (path) =>
+      `https://cdn.jsdelivr.net/npm/@techstark/opencv-js@4.9.0-1/${path}`
+  };
+</script>
+
+<!-- 2) OpenCV (luego del Module) -->
+<script async src="https://cdn.jsdelivr.net/npm/@techstark/opencv-js@4.9.0-1/opencv.js"></script>
+
+<!-- 3) Tesseract y tu app (como ya tenías) -->
+<script defer src="https://cdn.jsdelivr.net/npm/tesseract.js@5.0.5/dist/tesseract.min.js"></script>
+<script defer src="app.js?v=111"></script>
+
 </head>
 <body>
   <main class="wrap">
